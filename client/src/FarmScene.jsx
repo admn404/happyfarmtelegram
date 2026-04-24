@@ -360,7 +360,7 @@ function SceneRoot({
   onPlotHarvest, onCollectProduct, onExpand,
   selectedTile, onTileSelect,
 }) {
-  const [hoverPoint, setHoverPoint] = useRef(null);
+  const hoverPoint = useRef(null);
   const [, forceUpdate] = useState(0);
 
   const buildingAnimals = Object.fromEntries(buildings.map((building) => [building.id, 0]));
