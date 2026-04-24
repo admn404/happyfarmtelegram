@@ -435,7 +435,7 @@ export default function FarmScene(props) {
       <Canvas shadows dpr={[1, 1.5]}>
         <SceneRoot {...props} />
       </Canvas>
-      <div className="scene-tip">Тяни сцену одним пальцем. Плюсы по краям покупают новый участок.</div>
+      <div className="scene-tip">Тяни сцену одним пальцем. Используй кнопку «Расширить» для покупки земли.</div>
     </div>
   );
 }
