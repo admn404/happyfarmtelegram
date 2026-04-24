@@ -30,6 +30,7 @@ body {
     linear-gradient(180deg, #8fd6ff 0%, #7dd39d 38%, #366f3f 100%);
   touch-action: manipulation;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
@@ -76,6 +77,7 @@ textarea {
   backdrop-filter: blur(14px);
   box-shadow: 0 18px 32px rgba(16, 42, 22, 0.25);
   z-index: 5;
+  pointer-events: none;
 }
 
 .hud {
@@ -139,17 +141,23 @@ textarea {
 .zoom-btn,
 .menu-btn,
 .seed-option,
-.btn-cancel {
+.btn-cancel,
+.tab-btn,
+.sheet-close {
   border: 0;
   cursor: pointer;
+  touch-action: manipulation;
+  pointer-events: auto;
 }
 
 .store-btn {
   flex: 1;
-  min-height: 56px;
+  min-height: 60px;
+  padding: 0 16px;
   border-radius: 20px;
   color: #173816;
   font-weight: 700;
+  font-size: 16px;
   background: linear-gradient(180deg, #eaff96 0%, #9fe870 100%);
   box-shadow: 0 18px 30px rgba(40, 88, 28, 0.28);
 }
@@ -182,11 +190,12 @@ textarea {
 }
 
 .zoom-btn {
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border-radius: 18px;
   color: #f3fff1;
   font-size: 26px;
+  font-weight: 700;
   background: rgba(13, 29, 17, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(16px);
@@ -275,7 +284,7 @@ textarea {
 
 .tab-btn {
   flex: 1;
-  min-height: 44px;
+  min-height: 50px;
   border: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.08);
@@ -301,7 +310,8 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 14px 16px;
+  min-height: 72px;
+  padding: 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.06);
   color: #f6fff0;
@@ -477,6 +487,7 @@ textarea {
   font-size: 11px;
   white-space: nowrap;
   backdrop-filter: blur(10px);
+  pointer-events: none;
 }
 
 .scene-badge--ready {
@@ -528,20 +539,22 @@ textarea {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 18px rgba(60, 42, 11, 0.18);
+  pointer-events: none;
 }
 
 .scene-plus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.95);
   color: #1b4813;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   box-shadow: 0 8px 18px rgba(47, 84, 24, 0.22);
+  pointer-events: none;
 }
 
 .scene-health {
@@ -573,6 +586,7 @@ textarea {
   border: 1px solid rgba(235, 255, 194, 0.16);
   box-shadow: 0 18px 32px rgba(16, 42, 22, 0.25);
   backdrop-filter: blur(14px);
+  pointer-events: none;
 }
 
 .placement-banner strong {
@@ -597,6 +611,7 @@ textarea {
   color: #fff;
   box-shadow: 0 16px 28px rgba(10, 20, 12, 0.24);
   backdrop-filter: blur(12px);
+  pointer-events: none;
 }
 
 @media (max-width: 720px) {

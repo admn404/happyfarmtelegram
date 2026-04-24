@@ -72,6 +72,24 @@
 - Zoom range was lowered so a single tile can fit entirely on screen.
 - Tile top surface was simplified to read as one solid field block, not a field resting on a separate pad.
 
+### Newest pass
+
+- Removed the decorative underlay under the land tiles:
+  - no more scene-wide ground plane
+  - no side river or decorative trees under the playable land
+  - placement now happens by clicking directly on the owned tile top surface
+- Replaced the custom drag camera logic with fixed-angle `MapControls`:
+  - single-finger / mouse drag pans the scene
+  - camera angle stays locked in isometric view
+  - pan bounds are clamped to the owned land width
+- Increased touch target reliability:
+  - toolbar and modal buttons have larger touch sizes
+  - floating scene labels no longer intercept pointer events
+  - expansion `+` nodes now have a larger invisible hit area
+- Editor access remains in the main toolbar as `Редактор`:
+  - this is now the active tile-map dev editor
+  - the old rectangle-zone editor file still exists at `client/src/Editor.jsx`, but it is legacy and not wired into the current tile scene
+
 ## Known Risks / Next Work
 
 - Bundle size is still large (`~1.2 MB` minified JS).

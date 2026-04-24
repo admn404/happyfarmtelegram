@@ -120,7 +120,8 @@ export default function App() {
   const [seedFor, setSeedFor] = useState(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopTab, setShopTab] = useState('build');
-  const [zoom, setZoom] = useState(12);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [zoom, setZoom] = useState(10);
   const [now, setNow] = useState(() => Date.now());
   const [viewState, setViewState] = useState(() => createSnapshot(INITIAL_GAME_STATE));
   const [placementMode, setPlacementMode] = useState(null);
@@ -407,6 +408,25 @@ export default function App() {
     syncState(nextBalance).catch(() => {});
   };
 
+  const addLandEditor = (column) => {
+    if (gs.current.placements.landTiles.some((tile) => tile.column === column)) return;
+    gs.current.placements.landTiles.push({ id: createEntityId(), column });
+    gs.current.placements.landTiles.sort((a, b) => a.column - b.column);
+    refreshViewState();
+    syncState().catch(() => {});
+  };
+
+  const resetPlacedObjects = () => {
+    gs.current.placements.plots = [];
+    gs.current.placements.buildings = [];
+    gs.current.animals = [];
+    gs.current.products = [];
+    gs.current.warehouse = [];
+    refreshViewState();
+    syncState().catch(() => {});
+    showToast('Объекты на участке очищены.');
+  };
+
   const cancelPlacement = () => setPlacementMode(null);
 
   const buyAnimal = (type) => {
@@ -535,7 +555,7 @@ export default function App() {
       <div className="hud">
         <div>
           <div className="hud-title">Happy Farm Telegram</div>
-          <div className="hud-subtitle">Объемные участки, боковая река и расширение земли по краям</div>
+          <div className="hud-subtitle">Тайловая ферма с расширяемой землей и встроенным редактором карты</div>
         </div>
         <div className="hud-pills">
           <div className="hud-pill"><span>🪙</span><span>{balance}</span></div>
@@ -546,6 +566,7 @@ export default function App() {
 
       <div className="toolbar">
         <button className="store-btn" onClick={() => { setShopTab('build'); setShopOpen(true); }}>Магазин</button>
+        <button className="store-btn store-btn--secondary" onClick={() => setEditorOpen(true)}>Редактор</button>
         <button className="store-btn store-btn--secondary" onClick={sellWarehouse} disabled={!viewState.warehouse.length || viewState.truckTime > 0}>
           {viewState.truckTime > 0 ? `Доставка ${Math.ceil(viewState.truckTime)}с` : 'Продать'}
         </button>
@@ -656,6 +677,52 @@ export default function App() {
                   })}
                 </div>
               )}
+            </Motion.div>
+          </Motion.div>
+        )}
+
+        {editorOpen && (
+          <Motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setEditorOpen(false);
+          }}>
+            <Motion.div className="modal-sheet modal-sheet--shop" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}>
+              <div className="modal-head">
+                <div>
+                  <h2>Редактор карты</h2>
+                  <p>Старый редактор прямоугольных зон отключен. Текущая сцена живет на тайлах, и этот встроенный редактор управляет именно ими.</p>
+                </div>
+                <button className="sheet-close" onClick={() => setEditorOpen(false)}>✕</button>
+              </div>
+
+              <div className="seed-grid">
+                <button className="seed-option" onClick={() => addLandEditor(getLandColumns(viewState.placements.landTiles)[0] - 1)}>
+                  <div className="seed-info">
+                    <span className="seed-icon">⬅️</span>
+                    <div>
+                      <span className="seed-name">Добавить участок слева</span>
+                      <span className="seed-desc">Без списания монет, для отладки.</span>
+                    </div>
+                  </div>
+                </button>
+                <button className="seed-option" onClick={() => addLandEditor(getLandColumns(viewState.placements.landTiles).slice(-1)[0] + 1)}>
+                  <div className="seed-info">
+                    <span className="seed-icon">➡️</span>
+                    <div>
+                      <span className="seed-name">Добавить участок справа</span>
+                      <span className="seed-desc">Без списания монет, для отладки.</span>
+                    </div>
+                  </div>
+                </button>
+                <button className="seed-option" onClick={resetPlacedObjects}>
+                  <div className="seed-info">
+                    <span className="seed-icon">🧹</span>
+                    <div>
+                      <span className="seed-name">Очистить объекты</span>
+                      <span className="seed-desc">Удаляет грядки, здания, животных и продукцию.</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
             </Motion.div>
           </Motion.div>
         )}

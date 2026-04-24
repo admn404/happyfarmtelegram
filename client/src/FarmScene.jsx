@@ -1,5 +1,5 @@
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, OrthographicCamera, RoundedBox } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Html, MapControls, OrthographicCamera, RoundedBox } from '@react-three/drei';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
@@ -10,7 +10,6 @@ import {
   LAND_TILE_DEPTH_PX,
   LAND_TILE_WIDTH_PX,
   PRODUCT_ICONS,
-  WORLD_PX,
   PX_PER_UNIT,
   clamp,
   getLandColumns,
@@ -18,170 +17,60 @@ import {
   pointToWorld,
 } from './gameData';
 
-const WORLD_SIZE = WORLD_PX / PX_PER_UNIT;
 const TILE_WIDTH = LAND_TILE_WIDTH_PX / PX_PER_UNIT;
 const TILE_DEPTH = LAND_TILE_DEPTH_PX / PX_PER_UNIT;
 const TILE_HEIGHT = LAND_BLOCK_HEIGHT_PX / PX_PER_UNIT;
 
-function CameraRig({ zoom }) {
+function CameraRig({ zoom, landTiles }) {
   const cameraRef = useRef(null);
-  const target = useRef(new THREE.Vector3(4, 0, 0));
-  const dragging = useRef(false);
-  const last = useRef({ x: 0, y: 0 });
-  const { gl, invalidate } = useThree();
+  const controlsRef = useRef(null);
+  const columns = useMemo(() => getLandColumns(landTiles), [landTiles]);
+
+  const minColumn = columns[0];
+  const maxColumn = columns[columns.length - 1];
+  const [minX] = pointToWorld(getLandTileCenter(minColumn).x, getLandTileCenter(minColumn).y);
+  const [maxX] = pointToWorld(getLandTileCenter(maxColumn).x, getLandTileCenter(maxColumn).y);
+  const targetX = (minX + maxX) / 2;
 
   useEffect(() => {
-    const el = gl.domElement;
-
-    const handleDown = (event) => {
-      dragging.current = true;
-      last.current = { x: event.clientX, y: event.clientY };
-    };
-
-    const handleMove = (event) => {
-      if (!dragging.current) return;
-      const dx = event.clientX - last.current.x;
-      const dy = event.clientY - last.current.y;
-      last.current = { x: event.clientX, y: event.clientY };
-      const dragScale = 0.025 * (26 / zoom);
-      target.current.x = clamp(target.current.x - dx * dragScale, -8, 34);
-      target.current.z = clamp(target.current.z - dy * dragScale, -18, 18);
-      invalidate();
-    };
-
-    const handleUp = () => {
-      dragging.current = false;
-    };
-
-    el.addEventListener('pointerdown', handleDown);
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    return () => {
-      el.removeEventListener('pointerdown', handleDown);
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-    };
-  }, [gl, invalidate, zoom]);
+    if (!cameraRef.current || !controlsRef.current) return;
+    controlsRef.current.target.set(targetX, 0, 0);
+    cameraRef.current.position.set(targetX + 12.5, 12.5, 12.5);
+    controlsRef.current.update();
+  }, [targetX]);
 
   useFrame(() => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || !controlsRef.current) return;
+    const target = controlsRef.current.target;
+    target.x = clamp(target.x, minX - 1.2, maxX + 1.2);
+    target.z = clamp(target.z, -2.8, 2.8);
     cameraRef.current.zoom = THREE.MathUtils.lerp(cameraRef.current.zoom, zoom, 0.12);
-    cameraRef.current.position.x = THREE.MathUtils.lerp(cameraRef.current.position.x, target.current.x + 22, 0.08);
-    cameraRef.current.position.y = THREE.MathUtils.lerp(cameraRef.current.position.y, 18, 0.08);
-    cameraRef.current.position.z = THREE.MathUtils.lerp(cameraRef.current.position.z, target.current.z + 22, 0.08);
-    cameraRef.current.lookAt(target.current.x, 0, target.current.z);
     cameraRef.current.updateProjectionMatrix();
-  });
-
-  return <OrthographicCamera ref={cameraRef} makeDefault zoom={zoom} position={[24, 18, 22]} near={0.1} far={250} />;
-}
-
-function SkyGround() {
-  const patches = useMemo(
-    () => [
-      { position: [10, -TILE_HEIGHT - 0.02, 10], rotation: 0.3, color: '#5e9447', size: [18, 12] },
-      { position: [24, -TILE_HEIGHT - 0.03, -9], rotation: -0.42, color: '#6ca350', size: [14, 11] },
-      { position: [-12, -TILE_HEIGHT - 0.03, -12], rotation: -0.7, color: '#5c8f42', size: [16, 12] },
-    ],
-    [],
-  );
-
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[8, -TILE_HEIGHT - 0.06, 0]} receiveShadow>
-        <planeGeometry args={[WORLD_SIZE * 1.5, WORLD_SIZE * 1.4]} />
-        <meshStandardMaterial color="#77bd55" />
-      </mesh>
-      {patches.map((patch, index) => (
-        <mesh key={index} position={patch.position} rotation={[-Math.PI / 2, 0, patch.rotation]} receiveShadow>
-          <planeGeometry args={patch.size} />
-          <meshStandardMaterial color={patch.color} transparent opacity={0.28} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function River({ landTiles }) {
-  const flowLines = useRef([]);
-  const columns = getLandColumns(landTiles);
-  const leftCenter = getLandTileCenter(columns[0]);
-  const rightCenter = getLandTileCenter(columns[columns.length - 1]);
-  const [x, z] = pointToWorld(leftCenter.x, leftCenter.y);
-  const [, zRight] = pointToWorld(rightCenter.x, rightCenter.y);
-  const riverX = x - TILE_WIDTH * 0.78;
-  const riverLength = Math.max(TILE_DEPTH * 1.8, Math.abs(zRight - z) + TILE_DEPTH * 1.4);
-
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime();
-    flowLines.current.forEach((line, index) => {
-      if (!line) return;
-      line.position.z = ((t * 2.2) + index * 1.8) % riverLength - riverLength / 2;
-    });
+    controlsRef.current.update();
   });
 
   return (
-    <group position={[riverX, 0, 0]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -TILE_HEIGHT + 0.06, 0]} receiveShadow>
-        <planeGeometry args={[3.6, riverLength]} />
-        <meshStandardMaterial color="#5dc7ff" emissive="#2fb2ff" emissiveIntensity={0.22} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-1.95, -TILE_HEIGHT + 0.07, 0]}>
-        <planeGeometry args={[0.8, riverLength]} />
-        <meshStandardMaterial color="#d6c68b" />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[1.95, -TILE_HEIGHT + 0.07, 0]}>
-        <planeGeometry args={[0.75, riverLength]} />
-        <meshStandardMaterial color="#d4c080" />
-      </mesh>
-      {Array.from({ length: 8 }).map((_, index) => (
-        <mesh
-          key={index}
-          ref={(node) => { flowLines.current[index] = node; }}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, -TILE_HEIGHT + 0.09, index * 1.8]}
-        >
-          <planeGeometry args={[2.25, 0.42]} />
-          <meshStandardMaterial color="#dff7ff" transparent opacity={0.38} />
-        </mesh>
-      ))}
-    </group>
+    <>
+      <OrthographicCamera ref={cameraRef} makeDefault zoom={zoom} position={[12.5, 12.5, 12.5]} near={0.1} far={250} />
+      <MapControls
+        ref={controlsRef}
+        enableRotate={false}
+        enableZoom={false}
+        enableDamping
+        dampingFactor={0.12}
+        screenSpacePanning={false}
+        minPolarAngle={Math.PI / 3.4}
+        maxPolarAngle={Math.PI / 3.4}
+        minAzimuthAngle={-Math.PI / 4}
+        maxAzimuthAngle={-Math.PI / 4}
+        mouseButtons={{ LEFT: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }}
+        touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
+      />
+    </>
   );
 }
 
-function DecorativeTrees({ landTiles }) {
-  const columns = getLandColumns(landTiles);
-  const leftEdge = columns[0] * TILE_WIDTH;
-  const trees = useMemo(
-    () => [
-      [-12, -6], [-10, 8], [-13, 13], [18, -12], [21, -6], [23, 11], [28, 15], [13, 16],
-    ],
-    [],
-  );
-
-  return (
-    <group>
-      {trees.map((position, index) => (
-        <group key={index} position={[position[0] + leftEdge * 0.08, -TILE_HEIGHT, position[1]]}>
-          <mesh castShadow position={[0, 1.15, 0]}>
-            <cylinderGeometry args={[0.24, 0.34, 2.3, 8]} />
-            <meshStandardMaterial color="#7a4a1f" />
-          </mesh>
-          <mesh castShadow position={[0, 3.25, 0]}>
-            <coneGeometry args={[1.7, 3.6, 10]} />
-            <meshStandardMaterial color="#2f7a3d" />
-          </mesh>
-          <mesh castShadow position={[0.15, 4.25, 0.1]}>
-            <sphereGeometry args={[1.1, 12, 12]} />
-            <meshStandardMaterial color="#3e9b47" />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-}
-
-function LandTile({ column }) {
+function LandTile({ column, onPlace }) {
   const center = getLandTileCenter(column);
   const [x, z] = pointToWorld(center.x, center.y);
 
@@ -191,7 +80,15 @@ function LandTile({ column }) {
         <boxGeometry args={[TILE_WIDTH, TILE_HEIGHT, TILE_DEPTH]} />
         <meshStandardMaterial color="#8e5c30" />
       </mesh>
-      <mesh position={[0, TILE_HEIGHT / 2 + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh
+        position={[0, TILE_HEIGHT / 2 + 0.02, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        onClick={(event) => {
+          event.stopPropagation();
+          onPlace(event.point);
+        }}
+      >
         <planeGeometry args={[TILE_WIDTH, TILE_DEPTH]} />
         <meshStandardMaterial color="#7dc85d" />
       </mesh>
@@ -205,6 +102,10 @@ function ExpansionNode({ column, cost, onExpand }) {
 
   return (
     <group position={[x, 0.8, z]} onClick={(event) => { event.stopPropagation(); onExpand(column); }}>
+      <mesh visible={false}>
+        <cylinderGeometry args={[1.55, 1.55, 2.2, 24]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       <mesh castShadow>
         <cylinderGeometry args={[0.9, 1.05, 0.4, 24]} />
         <meshStandardMaterial color="#dffb9c" emissive="#bdf160" emissiveIntensity={0.25} />
@@ -413,19 +314,11 @@ function SceneRoot({ now, landTiles, plots, buildings, animals, products, wareho
         shadow-camera-top={35}
         shadow-camera-bottom={-35}
       />
-      <fog attach="fog" args={['#c0e2ff', 22, 75]} />
+      <fog attach="fog" args={['#c0e2ff', 28, 90]} />
       <color attach="background" args={['#9ad8ff']} />
-      <CameraRig zoom={zoom} />
-      <SkyGround />
-      <River landTiles={landTiles} />
-      <DecorativeTrees landTiles={landTiles} />
+      <CameraRig zoom={zoom} landTiles={landTiles} />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[8, 0.001, 0]} onClick={(event) => onGroundPlace(event.point)}>
-        <planeGeometry args={[WORLD_SIZE * 1.5, WORLD_SIZE * 1.4]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
-      {landTiles.map((tile) => <LandTile key={tile.id} column={tile.column} />)}
+      {landTiles.map((tile) => <LandTile key={tile.id} column={tile.column} onPlace={onGroundPlace} />)}
       {expansionOptions.map((option) => (
         <ExpansionNode key={option.side} column={option.column} cost={expansionCost} onExpand={onExpand} />
       ))}
@@ -456,7 +349,7 @@ export default function FarmScene(props) {
       <Canvas shadows dpr={[1, 1.5]}>
         <SceneRoot {...props} />
       </Canvas>
-      <div className="scene-tip">Участок теперь собирается из плиток земли. Расширяй боковыми плюсами.</div>
+      <div className="scene-tip">Тяни сцену одним пальцем. Плюсы по краям покупают новый участок.</div>
     </div>
   );
 }

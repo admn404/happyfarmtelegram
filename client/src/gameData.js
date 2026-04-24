@@ -1,6 +1,6 @@
 export const WORLD_PX = 2048;
 export const PX_PER_UNIT = 32;
-export const MIN_ZOOM = 9;
+export const MIN_ZOOM = 8;
 export const MAX_ZOOM = 28;
 
 export const LAND_TILE_WIDTH_PX = 360;
