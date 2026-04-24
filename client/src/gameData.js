@@ -198,6 +198,26 @@ export function getExpansionOptions(landTiles) {
   return options;
 }
 
+export function getTileExpansionOptions(tile, landTiles) {
+  if (!tile) return [];
+  const occupied = new Set(landTiles.map((t) => `${t.column},${t.row}`));
+  const options = [];
+  const neighbors = [
+    { column: tile.column, row: tile.row - 1, side: 'top' },
+    { column: tile.column, row: tile.row + 1, side: 'bottom' },
+    { column: tile.column - 1, row: tile.row, side: 'left' },
+    { column: tile.column + 1, row: tile.row, side: 'right' },
+  ];
+
+  neighbors.forEach((n) => {
+    if (!occupied.has(`${n.column},${n.row}`)) {
+      options.push(n);
+    }
+  });
+
+  return options;
+}
+
 export function isPointInsideTile(x, y, column, row = 0, margin = 0) {
   const rect = getLandTileRect(column, row);
   return (

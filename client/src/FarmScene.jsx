@@ -15,6 +15,7 @@ import {
   clamp,
   getLandBounds,
   getLandTileCenter,
+  getTileExpansionOptions,
   pointToWorld,
   snapToPlotGrid,
 } from './gameData';
@@ -355,9 +356,9 @@ function AnimalNode({ animal }) {
 
 function SceneRoot({
   now, landTiles, plots, buildings, animals, products,
-  warehouseStored, placementMode, zoom, onGroundPlace,
-  onPlotPlant, onPlotHarvest, onCollectProduct,
-  selectedTile, onTileSelect,
+  warehouseStored, expansionCost, placementMode, zoom,
+  onGroundPlace, onPlotPlant, onPlotHarvest, onCollectProduct,
+  onExpand, selectedTile, onTileSelect,
 }) {
   const [hoverPoint, setHoverPoint] = useState(null);
 
@@ -371,7 +372,7 @@ function SceneRoot({
   };
 
   return (
-    <>
+    <group onPointerMissed={() => onTileSelect(null)}>
       <ambientLight intensity={1.35} color="#f8f2d9" />
       <directionalLight
         castShadow
@@ -405,6 +406,16 @@ function SceneRoot({
         <PreviewNode placementMode={placementMode} hoverPoint={hoverPoint} />
       )}
 
+      {selectedTile && !placementMode && getTileExpansionOptions(selectedTile, landTiles).map((option) => (
+        <ExpansionNode
+          key={`${option.column},${option.row}`}
+          column={option.column}
+          row={option.row}
+          cost={expansionCost}
+          onExpand={onExpand}
+        />
+      ))}
+
       {plots.map((plot) => <PlotNode key={plot.id} plot={plot} now={now} onPlant={onPlotPlant} onHarvest={onPlotHarvest} />)}
       {buildings.map((building) => (
         <BuildingNode
@@ -422,7 +433,7 @@ function SceneRoot({
           <div className="scene-badge scene-badge--placement">Ставим: {placementMode.name}</div>
         </Html>
       )}
-    </>
+    </group>
   );
 }
 

@@ -20,7 +20,6 @@ import {
   getLandBounds,
   getLandTileCenter,
   snapToPlotGrid,
-  getExpansionOptions,
   isPointInsideOwnedLand,
 } from './gameData';
 
@@ -136,7 +135,6 @@ export default function App() {
   const [placementMode, setPlacementMode] = useState(null);
   const [toast, setToast] = useState('');
   const [selectedEditorTile, setSelectedEditorTile] = useState(null);
-  const [expansionOpen, setExpansionOpen] = useState(false);
 
   const auth = () => tg.initData || 'DEV_MODE_123';
 
@@ -549,7 +547,6 @@ export default function App() {
   });
 
   const warehouseCapacity = getWarehouseCapacity(viewState.placements.buildings);
-  const expansionOptions = getExpansionOptions(viewState.placements.landTiles);
 
   return (
     <>
@@ -569,8 +566,8 @@ export default function App() {
         onPlotHarvest={doHarvest}
         onCollectProduct={collectProduct}
         onExpand={buyExpansion}
-        selectedTile={editorOpen ? selectedEditorTile : null}
-        onTileSelect={editorOpen ? setSelectedEditorTile : null}
+        selectedTile={selectedEditorTile}
+        onTileSelect={placementMode ? null : setSelectedEditorTile}
       />
 
       <div className="hud">
@@ -587,7 +584,6 @@ export default function App() {
 
       <div className="toolbar">
         <button className="store-btn" onClick={() => { setShopTab('build'); setShopOpen(true); }}>Магазин</button>
-        <button className="store-btn store-btn--secondary" onClick={() => setExpansionOpen(true)}>Расширить</button>
         <button className="store-btn store-btn--secondary" onClick={() => setEditorOpen(true)}>Редактор</button>
         <button className="store-btn store-btn--secondary" onClick={sellWarehouse} disabled={!viewState.warehouse.length || viewState.truckTime > 0}>
           {viewState.truckTime > 0 ? `Доставка ${Math.ceil(viewState.truckTime)}с` : 'Продать'}
@@ -774,43 +770,6 @@ export default function App() {
                     </div>
                   </div>
                 </button>
-              </div>
-            </Motion.div>
-          </Motion.div>
-        )}
-
-        {expansionOpen && (
-          <Motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setExpansionOpen(false);
-          }}>
-            <Motion.div className="modal-sheet modal-sheet--shop" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}>
-              <div className="modal-head">
-                <div>
-                  <h2>Расширение участка</h2>
-                  <p>Купи новый участок земли, чтобы строить на нем.</p>
-                </div>
-                <button className="sheet-close" onClick={() => setExpansionOpen(false)}>✕</button>
-              </div>
-              <div className="seed-grid">
-                {expansionOptions.map((option) => (
-                  <button
-                    key={`${option.column},${option.row}`}
-                    className="seed-option"
-                    disabled={balance < LAND_EXPANSION_COST}
-                    onClick={() => {
-                      buyExpansion(option.column, option.row);
-                      setExpansionOpen(false);
-                    }}
-                  >
-                    <div className="seed-info">
-                      <span className="seed-icon">🧱</span>
-                      <div>
-                        <span className="seed-name">Участок ({option.side})</span>
-                        <span className="seed-desc">{LAND_EXPANSION_COST} 🪙</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
               </div>
             </Motion.div>
           </Motion.div>
