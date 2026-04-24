@@ -66,14 +66,14 @@ function CameraRig({ zoom }) {
   useFrame(() => {
     if (!cameraRef.current) return;
     cameraRef.current.zoom = THREE.MathUtils.lerp(cameraRef.current.zoom, zoom, 0.12);
-    cameraRef.current.position.x = THREE.MathUtils.lerp(cameraRef.current.position.x, target.current.x + 24, 0.08);
-    cameraRef.current.position.y = THREE.MathUtils.lerp(cameraRef.current.position.y, 20, 0.08);
-    cameraRef.current.position.z = THREE.MathUtils.lerp(cameraRef.current.position.z, target.current.z + 24, 0.08);
+    cameraRef.current.position.x = THREE.MathUtils.lerp(cameraRef.current.position.x, target.current.x + 22, 0.08);
+    cameraRef.current.position.y = THREE.MathUtils.lerp(cameraRef.current.position.y, 18, 0.08);
+    cameraRef.current.position.z = THREE.MathUtils.lerp(cameraRef.current.position.z, target.current.z + 22, 0.08);
     cameraRef.current.lookAt(target.current.x, 0, target.current.z);
     cameraRef.current.updateProjectionMatrix();
   });
 
-  return <OrthographicCamera ref={cameraRef} makeDefault zoom={zoom} position={[28, 20, 24]} near={0.1} far={250} />;
+  return <OrthographicCamera ref={cameraRef} makeDefault zoom={zoom} position={[24, 18, 22]} near={0.1} far={250} />;
 }
 
 function SkyGround() {
@@ -192,12 +192,8 @@ function LandTile({ column }) {
         <meshStandardMaterial color="#8e5c30" />
       </mesh>
       <mesh position={[0, TILE_HEIGHT / 2 + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[TILE_WIDTH * 0.98, TILE_DEPTH * 0.98]} />
+        <planeGeometry args={[TILE_WIDTH, TILE_DEPTH]} />
         <meshStandardMaterial color="#7dc85d" />
-      </mesh>
-      <mesh position={[0, TILE_HEIGHT / 2 + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[TILE_WIDTH * 0.84, TILE_DEPTH * 0.84]} />
-        <meshStandardMaterial color="#6fb654" />
       </mesh>
     </group>
   );
@@ -216,7 +212,7 @@ function ExpansionNode({ column, cost, onExpand }) {
       <Html position={[0, 0.03, 0]} center distanceFactor={8} transform sprite>
         <div className="scene-plus">+</div>
       </Html>
-      <Html position={[0, 1.3, 0]} center distanceFactor={12} transform>
+      <Html position={[0, 1.3, 0]} center distanceFactor={12} transform sprite>
         <div className="scene-badge scene-badge--expand">{cost}🪙</div>
       </Html>
     </group>
@@ -278,7 +274,7 @@ function PlotNode({ plot, now, onPlant, onHarvest }) {
         <meshStandardMaterial color="#6e431f" />
       </mesh>
       {crop && <PlotCrop crop={crop} isReady={isReady} now={now} />}
-      <Html position={[0, 0.78, 0]} center distanceFactor={12} transform occlude>
+      <Html position={[0, 0.78, 0]} center distanceFactor={12} transform sprite occlude>
         {crop ? (
           isReady ? <div className="scene-badge scene-badge--ready">Собрать</div> : <div className="scene-badge">{Math.max(1, Math.ceil(cropDef.growTime - cropProgress * cropDef.growTime))}с</div>
         ) : (
@@ -303,7 +299,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
           <coneGeometry args={[2.9, 1.7, 4]} />
           <meshStandardMaterial color="#7b2f1f" />
         </mesh>
-        <Html position={[0, 3.9, 0]} center distanceFactor={13} transform>
+        <Html position={[0, 3.9, 0]} center distanceFactor={13} transform sprite>
           <div className="scene-badge">Склад {warehouseStored}/{BUILDINGS.warehouse.capacity}</div>
         </Html>
       </group>
@@ -320,7 +316,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
           <coneGeometry args={[2.45, 1.45, 4]} />
           <meshStandardMaterial color="#d85a4a" />
         </mesh>
-        <Html position={[0, 3.4, 0]} center distanceFactor={12} transform>
+        <Html position={[0, 3.4, 0]} center distanceFactor={12} transform sprite>
           <div className="scene-badge">Курятник {animalsCount}/{BUILDINGS.coop.capacity}</div>
         </Html>
       </group>
@@ -336,7 +332,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
         <coneGeometry args={[2.65, 1.25, 4]} />
         <meshStandardMaterial color="#b04f63" />
       </mesh>
-      <Html position={[0, 3.2, 0]} center distanceFactor={12} transform>
+      <Html position={[0, 3.2, 0]} center distanceFactor={12} transform sprite>
         <div className="scene-badge">Свинарник {animalsCount}/{BUILDINGS.pigsty.capacity}</div>
       </Html>
     </group>
@@ -446,7 +442,7 @@ function SceneRoot({ now, landTiles, plots, buildings, animals, products, wareho
       {products.map((product) => <ProductNode key={product.id} product={product} onCollect={onCollectProduct} />)}
 
       {placementMode && (
-        <Html position={[0, 1, -12]} center distanceFactor={12} transform>
+        <Html position={[0, 1, -12]} center distanceFactor={12} transform sprite>
           <div className="scene-badge scene-badge--placement">Ставим: {placementMode.name}</div>
         </Html>
       )}

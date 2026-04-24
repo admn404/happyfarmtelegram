@@ -62,6 +62,16 @@
 - Added animated side river instead of a river crossing the whole map.
 - Added handoff document for future agents.
 
+### Latest pass
+
+- Land tile proportions adjusted so one tile is the main gameplay unit.
+- Placement now snaps to tile logic:
+  - one tile can hold `4` plots
+  - or `1` building
+- Labels in the scene were switched to face the camera.
+- Zoom range was lowered so a single tile can fit entirely on screen.
+- Tile top surface was simplified to read as one solid field block, not a field resting on a separate pad.
+
 ## Known Risks / Next Work
 
 - Bundle size is still large (`~1.2 MB` minified JS).

@@ -13,10 +13,14 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   PLACEABLES,
+  TILE_PLOT_LIMIT,
   WORLD_PX,
   clamp,
   getLandColumns,
+  getLandTileRect,
   getLandTileCenter,
+  getNearestLandColumn,
+  getPlotSlotCenters,
   isPointInsideOwnedLand,
 } from './gameData';
 
@@ -116,7 +120,7 @@ export default function App() {
   const [seedFor, setSeedFor] = useState(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopTab, setShopTab] = useState('build');
-  const [zoom, setZoom] = useState(22);
+  const [zoom, setZoom] = useState(12);
   const [now, setNow] = useState(() => Date.now());
   const [viewState, setViewState] = useState(() => createSnapshot(INITIAL_GAME_STATE));
   const [placementMode, setPlacementMode] = useState(null);
@@ -329,23 +333,53 @@ export default function App() {
       return;
     }
 
+    const column = getNearestLandColumn(x);
+    const tileRect = getLandTileRect(column);
+    const tilePlots = gs.current.placements.plots.filter((plot) => getNearestLandColumn(plot.cx) === column);
+    const tileBuildings = gs.current.placements.buildings.filter((building) => getNearestLandColumn(building.x) === column);
     const nextBalance = balanceRef.current - placementMode.cost;
+
     if (placementMode.type === 'plot') {
+      if (tileBuildings.length) {
+        showToast('На участке со строением грядки ставить нельзя.');
+        return;
+      }
+      if (tilePlots.length >= TILE_PLOT_LIMIT) {
+        showToast('На одном участке помещается только 4 грядки.');
+        return;
+      }
+      const occupiedSlots = new Set(tilePlots.map((plot) => plot.slot));
+      const nearestSlot = getPlotSlotCenters(column)
+        .filter((slot) => !occupiedSlots.has(slot.slot))
+        .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+
+      if (!nearestSlot) {
+        showToast('Свободных слотов под грядки нет.');
+        return;
+      }
+
       gs.current.placements.plots.push({
         id: createEntityId(),
         fieldId: gs.current.nextFieldId,
-        cx: x,
-        cy: y,
+        column,
+        slot: nearestSlot.slot,
+        cx: nearestSlot.x,
+        cy: nearestSlot.y,
         w: placementMode.width,
         h: placementMode.depth,
       });
       gs.current.nextFieldId += 1;
     } else {
+      if (tileBuildings.length || tilePlots.length) {
+        showToast('На этом участке уже что-то стоит. Для здания нужен свободный целый участок.');
+        return;
+      }
       gs.current.placements.buildings.push({
         id: createEntityId(),
         type: placementMode.id,
-        x,
-        y,
+        column,
+        x: tileRect.cx,
+        y: tileRect.cy,
       });
     }
 

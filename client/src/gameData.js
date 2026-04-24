@@ -1,14 +1,15 @@
 export const WORLD_PX = 2048;
 export const PX_PER_UNIT = 32;
-export const MIN_ZOOM = 14;
-export const MAX_ZOOM = 32;
+export const MIN_ZOOM = 9;
+export const MAX_ZOOM = 28;
 
-export const LAND_TILE_WIDTH_PX = 420;
-export const LAND_TILE_DEPTH_PX = 420;
-export const LAND_BLOCK_HEIGHT_PX = 56;
+export const LAND_TILE_WIDTH_PX = 360;
+export const LAND_TILE_DEPTH_PX = 360;
+export const LAND_BLOCK_HEIGHT_PX = 42;
 export const LAND_EXPANSION_COST = 5000;
 export const BASE_TILE_CENTER_X = WORLD_PX / 2 + 140;
 export const BASE_TILE_CENTER_Y = WORLD_PX / 2;
+export const TILE_PLOT_LIMIT = 4;
 
 export const CROPS = {
   wheat: {
@@ -37,8 +38,8 @@ export const BUILDINGS = {
     name: 'Курятник',
     desc: 'Нужен для покупки кур',
     cost: 180,
-    width: 170,
-    depth: 140,
+    width: 250,
+    depth: 250,
     capacity: 4,
     animalType: 'chicken',
   },
@@ -47,8 +48,8 @@ export const BUILDINGS = {
     name: 'Свинарник',
     desc: 'Нужен для покупки свиней',
     cost: 320,
-    width: 190,
-    depth: 150,
+    width: 250,
+    depth: 250,
     capacity: 3,
     animalType: 'pig',
   },
@@ -57,8 +58,8 @@ export const BUILDINGS = {
     name: 'Склад',
     desc: 'Хранение продукции',
     cost: 260,
-    width: 180,
-    depth: 150,
+    width: 250,
+    depth: 250,
     capacity: 20,
   },
 };
@@ -70,8 +71,8 @@ export const PLACEABLES = {
     name: 'Грядка',
     desc: 'Покупается и ставится вручную',
     cost: 60,
-    width: 170,
-    depth: 120,
+    width: 120,
+    depth: 88,
   },
   ...Object.fromEntries(
     Object.values(BUILDINGS).map((building) => [
@@ -175,4 +176,19 @@ export function isPointInsideTile(x, y, column, margin = 0) {
 
 export function isPointInsideOwnedLand(x, y, landTiles, margin = 0) {
   return getLandColumns(landTiles).some((column) => isPointInsideTile(x, y, column, margin));
+}
+
+export function getPlotSlotCenters(column) {
+  const center = getLandTileCenter(column);
+  const offset = LAND_TILE_WIDTH_PX * 0.23;
+  return [
+    { slot: 0, x: center.x - offset, y: center.y - offset },
+    { slot: 1, x: center.x + offset, y: center.y - offset },
+    { slot: 2, x: center.x - offset, y: center.y + offset },
+    { slot: 3, x: center.x + offset, y: center.y + offset },
+  ];
+}
+
+export function getNearestLandColumn(x) {
+  return Math.round((x - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX);
 }
