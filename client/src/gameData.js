@@ -4,21 +4,7 @@ export const MIN_ZOOM = 14;
 export const MAX_ZOOM = 32;
 
 export const FALLBACK_LAYOUT = {
-  beds: [
-    { cx: 480, cy: 750 },
-    { cx: 720, cy: 920 },
-    { cx: 480, cy: 1100 },
-    { cx: 720, cy: 1270 },
-  ],
-  bedSize: { w: 340, h: 220 },
-  zones: {
-    well: { x: 880, y: 120, w: 280, h: 280 },
-    warehouse: { x: 850, y: 1650, w: 350, h: 250 },
-    truck: { x: 1600, y: 1600, w: 300, h: 200 },
-    shop: { x: 1480, y: 420, w: 260, h: 240 },
-    pen: { x: 1120, y: 840, w: 560, h: 500 },
-  },
-  scales: { animal: 1.0, crop: 1.0, product: 1.0 },
+  scales: { animal: 1, crop: 1, product: 1 },
 };
 
 export const CROPS = {
@@ -34,26 +20,97 @@ export const CROPS = {
   corn: {
     id: 'corn',
     name: 'Кукуруза',
-    desc: '30 сек · +35🪙',
+    desc: '30 сек · +100🪙',
     cost: 20,
-    reward: 35,
+    reward: 100,
     growTime: 30,
     palette: ['#5ab64c', '#77c54d', '#f2c94c'],
   },
 };
 
+export const BUILDINGS = {
+  coop: {
+    id: 'coop',
+    name: 'Курятник',
+    desc: 'Нужен для покупки кур',
+    cost: 180,
+    width: 170,
+    depth: 140,
+    capacity: 4,
+    animalType: 'chicken',
+  },
+  pigsty: {
+    id: 'pigsty',
+    name: 'Свинарник',
+    desc: 'Нужен для покупки свиней',
+    cost: 320,
+    width: 190,
+    depth: 150,
+    capacity: 3,
+    animalType: 'pig',
+  },
+  warehouse: {
+    id: 'warehouse',
+    name: 'Склад',
+    desc: 'Хранение продукции',
+    cost: 260,
+    width: 180,
+    depth: 150,
+    capacity: 20,
+  },
+};
+
+export const PLACEABLES = {
+  plot: {
+    id: 'plot',
+    type: 'plot',
+    name: 'Грядка',
+    desc: 'Покупается и ставится вручную',
+    cost: 60,
+    width: 170,
+    depth: 120,
+  },
+  ...Object.fromEntries(
+    Object.values(BUILDINGS).map((building) => [
+      building.id,
+      {
+        ...building,
+        type: 'building',
+      },
+    ]),
+  ),
+};
+
 export const ANIMALS = {
-  chicken: { name: 'Курица', icon: '🐔', cost: 50, product: 'egg', prodName: 'Яйцо', interval: 12, price: 15, color: '#fff4d6' },
-  pig: { name: 'Свинья', icon: '🐷', cost: 150, product: 'truffle', prodName: 'Трюфель', interval: 20, price: 40, color: '#ffbfd7' },
-  sheep: { name: 'Овца', icon: '🐑', cost: 300, product: 'wool', prodName: 'Шерсть', interval: 25, price: 70, color: '#f1f5f9' },
-  cow: { name: 'Корова', icon: '🐮', cost: 500, product: 'milk', prodName: 'Молоко', interval: 30, price: 100, color: '#ffffff' },
+  chicken: {
+    id: 'chicken',
+    name: 'Курица',
+    icon: '🐔',
+    cost: 50,
+    product: 'egg',
+    prodName: 'Яйцо',
+    interval: 12,
+    price: 15,
+    color: '#fff4d6',
+    homeBuilding: 'coop',
+  },
+  pig: {
+    id: 'pig',
+    name: 'Свинья',
+    icon: '🐷',
+    cost: 150,
+    product: 'truffle',
+    prodName: 'Трюфель',
+    interval: 20,
+    price: 40,
+    color: '#ffbfd7',
+    homeBuilding: 'pigsty',
+  },
 };
 
 export const PRODUCT_ICONS = {
   egg: '🥚',
   truffle: '🍄',
-  wool: '🧶',
-  milk: '🥛',
 };
 
 export function clamp(value, min, max) {
@@ -70,6 +127,13 @@ export function pxToWorldZ(y) {
 
 export function pointToWorld(x, y) {
   return [pxToWorldX(x), pxToWorldZ(y)];
+}
+
+export function pointFromWorld(x, z) {
+  return {
+    x: clamp(x * PX_PER_UNIT + WORLD_PX / 2, 60, WORLD_PX - 60),
+    y: clamp(z * PX_PER_UNIT + WORLD_PX / 2, 60, WORLD_PX - 60),
+  };
 }
 
 export function rectToWorld(rect) {

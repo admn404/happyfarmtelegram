@@ -130,6 +130,16 @@ textarea {
   gap: 12px;
 }
 
+.toolbar {
+  position: fixed;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  z-index: 10;
+  display: flex;
+  gap: 12px;
+}
+
 .store-btn,
 .zoom-btn,
 .menu-btn,
@@ -153,6 +163,12 @@ textarea {
   flex: 0.8;
   color: #f4fff4;
   background: linear-gradient(180deg, rgba(15, 31, 19, 0.9) 0%, rgba(28, 61, 33, 0.92) 100%);
+}
+
+.store-btn--danger {
+  flex: 0.9;
+  color: #fff3f3;
+  background: linear-gradient(180deg, #ea6d76 0%, #bf3645 100%);
 }
 
 .store-btn:disabled {
@@ -217,6 +233,62 @@ textarea {
   text-align: center;
   font-size: 22px;
   color: #f8fff1;
+}
+
+.modal-sheet p {
+  margin: 4px 0 0;
+  color: rgba(240, 255, 234, 0.7);
+  font-size: 13px;
+}
+
+.modal-sheet--shop {
+  max-height: min(82vh, 760px);
+  overflow-y: auto;
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-head h2 {
+  margin: 0;
+  text-align: left;
+}
+
+.sheet-close {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+
+.tab-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.tab-btn {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2ffef;
+  cursor: pointer;
+}
+
+.tab-btn--active {
+  background: linear-gradient(180deg, #eaff96 0%, #9fe870 100%);
+  color: #173816;
+  font-weight: 700;
 }
 
 .seed-grid {
@@ -464,6 +536,47 @@ textarea {
   border-radius: inherit;
 }
 
+.placement-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 94px;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgba(11, 24, 16, 0.8);
+  border: 1px solid rgba(235, 255, 194, 0.16);
+  box-shadow: 0 18px 32px rgba(16, 42, 22, 0.25);
+  backdrop-filter: blur(14px);
+}
+
+.placement-banner strong {
+  color: #fafff4;
+}
+
+.placement-banner span {
+  font-size: 13px;
+  color: rgba(244, 255, 236, 0.8);
+}
+
+.toast {
+  position: fixed;
+  top: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(17, 32, 19, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(10, 20, 12, 0.24);
+  backdrop-filter: blur(12px);
+}
+
 @media (max-width: 720px) {
   .hud {
     flex-direction: column;
@@ -477,12 +590,23 @@ textarea {
   .scene-tip {
     left: 18px;
     right: 18px;
-    bottom: 92px;
+    bottom: 154px;
     transform: none;
     text-align: center;
   }
 
   .zoom-controls {
     bottom: 166px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+  }
+
+  .placement-banner {
+    left: 18px;
+    right: 18px;
+    bottom: 202px;
+    transform: none;
   }
 }
