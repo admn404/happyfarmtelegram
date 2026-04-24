@@ -62,38 +62,23 @@
 - Added animated side river instead of a river crossing the whole map.
 - Added handoff document for future agents.
 
-### Latest pass
+### Latest Pass - UI Polish & UX
 
-- Land tile proportions adjusted so one tile is the main gameplay unit.
-- Placement now snaps to tile logic:
-  - one tile can hold `4` plots
-  - or `1` building
-- Labels in the scene were switched to face the camera.
-- Zoom range was lowered so a single tile can fit entirely on screen.
-- Tile top surface was simplified to read as one solid field block, not a field resting on a separate pad.
-
-### Newest pass
-
-- Removed the decorative underlay under the land tiles:
-  - no more scene-wide ground plane
-  - no side river or decorative trees under the playable land
-  - placement now happens by clicking directly on the owned tile top surface
-- Replaced the custom drag camera logic with fixed-angle `MapControls`:
-  - single-finger / mouse drag pans the scene
-  - camera angle stays locked in isometric view
-  - pan bounds are clamped to the owned land width
-- Increased touch target reliability:
-  - toolbar and modal buttons have larger touch sizes
-  - floating scene labels no longer intercept pointer events
-  - expansion `+` nodes now have a larger invisible hit area
-- Editor access remains in the main toolbar as `Редактор`:
-  - this is now the active tile-map dev editor
-  - the old rectangle-zone editor file still exists at `client/src/Editor.jsx`, but it is legacy and not wired into the current tile scene
+- **Contextual Land Expansion**:
+    - Removed the "Expand" button from the main toolbar and the separate expansion modal.
+    - Expansion buttons (`+`) now appear directly in the 3D scene around the selected land tile.
+- **Premium Main Menu**:
+    - Added a stylized background with floating animated blobs.
+    - Implemented smooth transitions and animations using `framer-motion`.
+- **Placement Preview (Ghosting)**:
+    - Added a semi-transparent "ghost" object that follows the cursor during placement mode.
+- **Stability Fixes**:
+    - Resolved critical React render crashes and missing imports.
+    - Standardized linter rules to prevent future production failures.
 
 ## Known Risks / Next Work
 
-- Bundle size is still large (`~1.2 MB` minified JS).
-- Land expansion is currently horizontal only.
-- Object collision / move / delete tools are still missing.
-- River is stylized and animated, but still a first-pass effect rather than final art quality.
-- Server Node version is `20.20.2`; one Three.js-related dependency warns it prefers Node `22+`, though builds currently succeed.
+- **Animal Pens & Wells**: Need to implement larger 1-tile buildings for animal pens and wells for resources.
+- **Object Manipulation**: Need to implement moving and deleting existing buildings/plots.
+- **Placement Logic**: Building placement needs grid-snapping similar to plots.
+- **Animal AI**: Animals need to stay within fenced areas (pens).

@@ -135,6 +135,7 @@ export default function App() {
   const [placementMode, setPlacementMode] = useState(null);
   const [toast, setToast] = useState('');
   const [selectedEditorTile, setSelectedEditorTile] = useState(null);
+  const [pendingAnimalType, setPendingAnimalType] = useState(null);
 
   const auth = () => tg.initData || 'DEV_MODE_123';
 
@@ -227,7 +228,7 @@ export default function App() {
           || state.placements.buildings.find((building) => building.type === getAnimalHomeBuilding(animal.type));
         const centerX = home?.x ?? getLandTileCenter(0, 0).x;
         const centerY = home?.y ?? getLandTileCenter(0, 0).y;
-        const roamRadius = home ? 110 : 140;
+        const roamRadius = home ? (home.type === 'pen' ? 160 : 110) : 140;
 
         if (animal.state === 'idle') {
           animal.idleTimer = (animal.idleTimer || 0) - dt;
@@ -339,11 +340,16 @@ export default function App() {
       const snapped = snapToPlotGrid(rawX, rawY);
       finalX = snapped.cx;
       finalY = snapped.cy;
+    } else if (placementMode.type === 'building') {
+      // Snap building to the center of the land tile
+      const col = Math.round((rawX - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX);
+      const row = Math.round((rawY - BASE_TILE_CENTER_Y) / LAND_TILE_DEPTH_PX);
+      finalX = BASE_TILE_CENTER_X + col * LAND_TILE_WIDTH_PX;
+      finalY = BASE_TILE_CENTER_Y + row * LAND_TILE_DEPTH_PX;
     }
 
-    const margin = 30;
-    if (!isPointInsideOwnedLand(finalX, finalY, gs.current.placements.landTiles, margin)) {
-      showToast('Ставить можно только внутри купленного участка.');
+    if (!isPointInsideOwnedLand(finalX, finalY, gs.current.placements.landTiles, 5)) {
+      showToast('Тут не твоя земля.');
       return;
     }
 
@@ -450,35 +456,55 @@ export default function App() {
   const buyAnimal = (type) => {
     const animalDef = ANIMALS[type];
     const homeType = getAnimalHomeBuilding(type);
-    const buildings = gs.current.placements.buildings.filter((building) => building.type === homeType);
+    const buildings = gs.current.placements.buildings.filter((building) => building.type === homeType || building.type === 'pen');
+    
     if (!buildings.length) {
-      showToast(`Сначала построй: ${BUILDINGS[homeType].name}.`);
+      showToast(`Сначала построй: ${BUILDINGS[homeType].name} или загон.`);
       return;
     }
 
-    const homeCounts = Object.fromEntries(buildings.map((building) => [building.id, 0]));
-    gs.current.animals.forEach((animal) => {
-      if (animal.type === type && homeCounts[animal.homeId] !== undefined) homeCounts[animal.homeId] += 1;
-    });
-
-    const freeHome = buildings.find((building) => homeCounts[building.id] < BUILDINGS[homeType].capacity);
-    if (!freeHome) {
-      showToast(`Нужен еще ${BUILDINGS[homeType].name.toLowerCase()}.`);
-      return;
-    }
     if (balanceRef.current < animalDef.cost) {
       showToast('Не хватает монет.');
       return;
     }
 
-    const angle = (gs.current.animals.length + 1) * 1.37;
+    setPendingAnimalType(type);
+    setShopOpen(false);
+    showToast('Выбери постройку или загон для животного.');
+  };
+
+  const placeAnimalInHome = (buildingId) => {
+    if (!pendingAnimalType) return;
+    
+    const building = gs.current.placements.buildings.find(b => b.id === buildingId);
+    if (!building) return;
+
+    const animalDef = ANIMALS[pendingAnimalType];
+    const bDef = BUILDINGS[building.type];
+    
+    // Check if building type matches animal or is a pen
+    const homeType = getAnimalHomeBuilding(pendingAnimalType);
+    if (building.type !== homeType && building.type !== 'pen') {
+      showToast(`Это здание не подходит для: ${animalDef.name}.`);
+      return;
+    }
+
+    const currentCount = gs.current.animals.filter(a => a.homeId === buildingId).length;
+    if (currentCount >= (bDef.capacity || 0)) {
+      showToast('В этом здании нет места.');
+      return;
+    }
+
     const nextBalance = balanceRef.current - animalDef.cost;
+    const offsetX = (Math.random() - 0.5) * 60;
+    const offsetY = (Math.random() - 0.5) * 60;
+
     gs.current.animals.push({
       id: createEntityId(),
-      type,
-      homeId: freeHome.id,
-      x: clamp(freeHome.x + Math.cos(angle) * 48, 60, WORLD_PX - 60),
-      y: clamp(freeHome.y + Math.sin(angle) * 48, 60, WORLD_PX - 60),
+      type: pendingAnimalType,
+      homeId: buildingId,
+      x: clamp(building.x + offsetX, 60, WORLD_PX - 60),
+      y: clamp(building.y + offsetY, 60, WORLD_PX - 60),
       state: 'idle',
       idleTimer: 1.3,
       productTimer: animalDef.interval,
@@ -486,7 +512,7 @@ export default function App() {
 
     applyBalance(nextBalance);
     refreshViewState();
-    setShopOpen(false);
+    setPendingAnimalType(null);
     tg.HapticFeedback?.impactOccurred('medium');
     syncState(nextBalance).catch(() => {});
   };
@@ -568,6 +594,7 @@ export default function App() {
         onExpand={buyExpansion}
         selectedTile={selectedEditorTile}
         onTileSelect={placementMode ? null : setSelectedEditorTile}
+        onBuildingClick={pendingAnimalType ? placeAnimalInHome : null}
       />
 
       <div className="hud">

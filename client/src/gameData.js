@@ -62,6 +62,23 @@ export const BUILDINGS = {
     depth: 250,
     capacity: 20,
   },
+  pen: {
+    id: 'pen',
+    name: 'Загон',
+    desc: 'Огражденная площадка для животных',
+    cost: 500,
+    width: 360,
+    depth: 360,
+    capacity: 10,
+  },
+  well: {
+    id: 'well',
+    name: 'Колодец',
+    desc: 'Источник воды и корма',
+    cost: 400,
+    width: 150,
+    depth: 150,
+  },
 };
 
 export const PLACEABLES = {

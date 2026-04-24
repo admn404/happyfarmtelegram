@@ -18,6 +18,7 @@ import {
   getTileExpansionOptions,
   pointToWorld,
   snapToPlotGrid,
+  BASE_TILE_CENTER_X,
 } from './gameData';
 
 const TILE_WIDTH = LAND_TILE_WIDTH_PX / PX_PER_UNIT;
@@ -208,13 +209,83 @@ function PlotNode({ plot, now, onPlant, onHarvest }) {
   );
 }
 
-function BuildingNode({ building, animalsCount, warehouseStored }) {
+function PenNode({ building, animalsCount, onClick }) {
+  const [x, z] = pointToWorld(building.x, building.y);
+  const groundY = 0.04;
+  const size = 360 / 32;
+
+  return (
+    <group position={[x, groundY, z]} onClick={onClick}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[size - 0.4, size - 0.4]} />
+        <meshStandardMaterial color="#7bb16a" />
+      </mesh>
+      
+      <group position={[0, 0.4, 0]}>
+        <RoundedBox args={[size, 0.8, 0.2]} position={[0, 0, -size/2]} radius={0.05}>
+          <meshStandardMaterial color="#8b572b" />
+        </RoundedBox>
+        <RoundedBox args={[size, 0.8, 0.2]} position={[0, 0, size/2]} radius={0.05}>
+          <meshStandardMaterial color="#8b572b" />
+        </RoundedBox>
+        <RoundedBox args={[0.2, 0.8, size]} position={[-size/2, 0, 0]} radius={0.05}>
+          <meshStandardMaterial color="#8b572b" />
+        </RoundedBox>
+        <RoundedBox args={[0.2, 0.8, size]} position={[size/2, 0, 0]} radius={0.05}>
+          <meshStandardMaterial color="#8b572b" />
+        </RoundedBox>
+      </group>
+
+      <Html position={[0, 1.2, 0]} center distanceFactor={12} transform sprite>
+        <div className="scene-badge">Загон {animalsCount}/{BUILDINGS.pen.capacity}</div>
+      </Html>
+    </group>
+  );
+}
+
+function WellNode({ building, onClick }) {
   const [x, z] = pointToWorld(building.x, building.y);
   const groundY = 0.06;
 
+  return (
+    <group position={[x, groundY, z]} onClick={onClick}>
+      <RoundedBox args={[1.8, 1.2, 1.8]} radius={0.1} castShadow receiveShadow>
+        <meshStandardMaterial color="#9b9b9b" />
+      </RoundedBox>
+      <mesh position={[0.6, 1.2, 0]}>
+        <boxGeometry args={[0.1, 1.5, 0.1]} />
+        <meshStandardMaterial color="#6e431f" />
+      </mesh>
+      <mesh position={[-0.6, 1.2, 0]}>
+        <boxGeometry args={[0.1, 1.5, 0.1]} />
+        <meshStandardMaterial color="#6e431f" />
+      </mesh>
+      <mesh position={[0, 2.2, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <coneGeometry args={[1.6, 0.8, 4]} />
+        <meshStandardMaterial color="#7b2f1f" />
+      </mesh>
+      
+      <Html position={[0, 3.2, 0]} center distanceFactor={12} transform sprite>
+        <div className="scene-badge">Колодец</div>
+      </Html>
+    </group>
+  );
+}
+
+function BuildingNode({ building, animalsCount, warehouseStored, onClick }) {
+  const [x, z] = pointToWorld(building.x, building.y);
+  const groundY = 0.06;
+
+  const handleClick = (event) => {
+    if (onClick) {
+      event.stopPropagation();
+      onClick(building.id);
+    }
+  };
+
   if (building.type === 'warehouse') {
     return (
-      <group position={[x, groundY, z]}>
+      <group position={[x, groundY, z]} onClick={handleClick}>
         <RoundedBox args={[4.1, 2.5, 3.4]} radius={0.14} castShadow receiveShadow>
           <meshStandardMaterial color="#d28a42" />
         </RoundedBox>
@@ -231,7 +302,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
 
   if (building.type === 'coop') {
     return (
-      <group position={[x, groundY, z]}>
+      <group position={[x, groundY, z]} onClick={handleClick}>
         <RoundedBox args={[3.4, 1.9, 2.7]} radius={0.12} castShadow receiveShadow>
           <meshStandardMaterial color="#f4d7a4" />
         </RoundedBox>
@@ -246,8 +317,11 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
     );
   }
 
+  if (building.type === 'pen') return <PenNode building={building} animalsCount={animalsCount} onClick={handleClick} />;
+  if (building.type === 'well') return <WellNode building={building} onClick={handleClick} />;
+
   return (
-    <group position={[x, groundY, z]}>
+    <group position={[x, groundY, z]} onClick={handleClick}>
       <RoundedBox args={[3.8, 1.7, 2.9]} radius={0.12} castShadow receiveShadow>
         <meshStandardMaterial color="#efb1bf" />
       </RoundedBox>
@@ -275,6 +349,11 @@ function PreviewNode({ placementMode, hoverPoint }) {
     const snapped = snapToPlotGrid(rawX, rawY);
     finalX = snapped.cx;
     finalY = snapped.cy;
+  } else if (placementMode.type === 'building') {
+    const col = Math.round((rawX - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX);
+    const row = Math.round((rawY - BASE_TILE_CENTER_Y) / LAND_TILE_DEPTH_PX);
+    finalX = BASE_TILE_CENTER_X + col * LAND_TILE_WIDTH_PX;
+    finalY = BASE_TILE_CENTER_Y + row * LAND_TILE_DEPTH_PX;
   }
 
   const [wx, wz] = pointToWorld(finalX, finalY);
@@ -282,15 +361,17 @@ function PreviewNode({ placementMode, hoverPoint }) {
   return (
     <group position={[wx, 0.2, wz]}>
       <group opacity={0.5} transparent>
-        <BuildingNode
-          building={{ type: placementMode.id, x: finalX, y: finalY }}
-          animalsCount={0}
-          warehouseStored={0}
-        />
-        {placementMode.type === 'plot' && (
-          <RoundedBox args={[placementMode.width / 32, 0.3, placementMode.depth / 32]} radius={0.1} smoothness={4}>
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.4} />
-          </RoundedBox>
+        {placementMode.type === 'plot' ? (
+          <PlotNode 
+            plot={{ id: 'preview', cx: finalX, cy: finalY, field: { id: 'preview' } }} 
+            now={Date.now()} 
+          />
+        ) : (
+          <BuildingNode
+            building={{ type: placementMode.id, x: finalX, y: finalY }}
+            animalsCount={0}
+            warehouseStored={0}
+          />
         )}
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
@@ -358,7 +439,7 @@ function SceneRoot({
   now, landTiles, plots, buildings, animals, products,
   warehouseStored, expansionCost, placementMode, zoom,
   onGroundPlace, onPlotPlant, onPlotHarvest, onCollectProduct,
-  onExpand, selectedTile, onTileSelect,
+  onExpand, selectedTile, onTileSelect, onBuildingClick,
 }) {
   const [hoverPoint, setHoverPoint] = useState(null);
 
@@ -423,6 +504,7 @@ function SceneRoot({
           building={building}
           animalsCount={buildingAnimals[building.id] || 0}
           warehouseStored={warehouseStored}
+          onClick={onBuildingClick}
         />
       ))}
       {animals.map((animal) => <AnimalNode key={animal.id} animal={animal} />)}
@@ -443,7 +525,7 @@ export default function FarmScene(props) {
       <Canvas shadows dpr={[1, 1.5]}>
         <SceneRoot {...props} />
       </Canvas>
-      <div className="scene-tip">Тяни сцену одним пальцем. Используй кнопку «Расширить» для покупки земли.</div>
+      <div className="scene-tip">Тяни сцену одним пальцем. Нажми на участок для расширения.</div>
     </div>
   );
 }
