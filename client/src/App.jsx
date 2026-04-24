@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
 import './App.css';
 import FarmScene from './FarmScene';
 import MainMenu from './MainMenu';
 import {
   ANIMALS,
+  BASE_TILE_CENTER_X,
   BUILDINGS,
   CROPS,
+  LAND_EXPANSION_COST,
+  LAND_TILE_WIDTH_PX,
   MAX_ZOOM,
   MIN_ZOOM,
   PLACEABLES,
   WORLD_PX,
   clamp,
+  getLandColumns,
+  getLandTileCenter,
+  isPointInsideOwnedLand,
 } from './gameData';
 
 const tg = window.Telegram.WebApp;
@@ -22,6 +28,7 @@ const INITIAL_GAME_STATE = {
   truckTime: 0,
   truckReward: 0,
   placements: {
+    landTiles: [{ id: 'land-0', column: 0 }],
     plots: [],
     buildings: [],
   },
@@ -41,10 +48,28 @@ function createSnapshot(state) {
     truckReward: state.truckReward || 0,
     nextFieldId: state.nextFieldId || 100,
     placements: {
+      landTiles: (state.placements?.landTiles || []).map((tile) => ({ ...tile })),
       plots: (state.placements?.plots || []).map((plot) => ({ ...plot })),
       buildings: (state.placements?.buildings || []).map((building) => ({ ...building })),
     },
   };
+}
+
+function inferColumnFromX(x) {
+  return Math.round((x - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX);
+}
+
+function normalizeLandTiles(gameState) {
+  const explicitTiles = gameState?.placements?.landTiles || [];
+  if (explicitTiles.length) return explicitTiles;
+
+  const columns = new Set([0]);
+  for (const plot of gameState?.placements?.plots || []) columns.add(inferColumnFromX(plot.cx));
+  for (const building of gameState?.placements?.buildings || []) columns.add(inferColumnFromX(building.x));
+
+  return [...columns]
+    .sort((a, b) => a - b)
+    .map((column) => ({ id: `land-${column}`, column }));
 }
 
 function normalizeGameState(gameState, fields) {
@@ -53,6 +78,7 @@ function normalizeGameState(gameState, fields) {
     ...INITIAL_GAME_STATE,
     ...gameState,
     placements: {
+      landTiles: normalizeLandTiles(gameState),
       plots: gameState?.placements?.plots || [],
       buildings: gameState?.placements?.buildings || [],
     },
@@ -66,6 +92,16 @@ function getAnimalHomeBuilding(type) {
 
 function getWarehouseCapacity(buildings) {
   return buildings.filter((building) => building.type === 'warehouse').length * BUILDINGS.warehouse.capacity;
+}
+
+function getExpansionOptions(landTiles) {
+  const columns = getLandColumns(landTiles);
+  const min = columns[0];
+  const max = columns[columns.length - 1];
+  return [
+    { side: 'left', column: min - 1 },
+    { side: 'right', column: max + 1 },
+  ];
 }
 
 export default function App() {
@@ -98,7 +134,7 @@ export default function App() {
   const showToast = (message) => {
     setToast(message);
     window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setToast(''), 2400);
+    toastTimerRef.current = window.setTimeout(() => setToast(''), 2600);
   };
 
   const syncState = useCallback(async (coinsValue = balanceRef.current) => {
@@ -120,8 +156,7 @@ export default function App() {
         if (data.success) {
           applyBalance(data.data.coins);
           setFields(data.data.fields);
-          const normalized = normalizeGameState(data.data.gameState, data.data.fields);
-          gs.current = normalized;
+          gs.current = normalizeGameState(data.data.gameState, data.data.fields);
           refreshViewState();
         }
       } catch (error) {
@@ -176,15 +211,15 @@ export default function App() {
       state.animals.forEach((animal, index) => {
         const home = state.placements.buildings.find((building) => building.id === animal.homeId)
           || state.placements.buildings.find((building) => building.type === getAnimalHomeBuilding(animal.type));
-        const centerX = home?.x ?? WORLD_PX / 2;
-        const centerY = home?.y ?? WORLD_PX / 2;
-        const roamRadius = home ? 110 : 160;
+        const centerX = home?.x ?? getLandTileCenter(0).x;
+        const centerY = home?.y ?? getLandTileCenter(0).y;
+        const roamRadius = home ? 110 : 140;
 
         if (animal.state === 'idle') {
           animal.idleTimer = (animal.idleTimer || 0) - dt;
           if (animal.idleTimer <= 0) {
-            const angle = (index + currentNow / 4000) * 1.7;
-            const distance = 40 + ((index % 4) + 1) * 14;
+            const angle = (index + currentNow / 4000) * 1.6;
+            const distance = 36 + ((index % 4) + 1) * 14;
             animal.target = {
               x: clamp(centerX + Math.cos(angle) * Math.min(distance, roamRadius), 60, WORLD_PX - 60),
               y: clamp(centerY + Math.sin(angle) * Math.min(distance, roamRadius), 60, WORLD_PX - 60),
@@ -201,9 +236,9 @@ export default function App() {
 
           if (distance < 8) {
             animal.state = 'idle';
-            animal.idleTimer = 1.4 + (index % 3) * 0.45;
+            animal.idleTimer = 1.5 + (index % 3) * 0.45;
           } else {
-            const speed = 55 * dt;
+            const speed = 56 * dt;
             animal.x += (dx / distance) * speed;
             animal.y += (dy / distance) * speed;
             dirty = true;
@@ -274,21 +309,27 @@ export default function App() {
   const startPlacement = (itemId) => {
     setPlacementMode(PLACEABLES[itemId]);
     setShopOpen(false);
-    showToast(`Выбран объект: ${PLACEABLES[itemId].name}. Ткни по земле, чтобы поставить.`);
+    showToast(`Выбран объект: ${PLACEABLES[itemId].name}. Ткни по своему участку, чтобы поставить.`);
   };
 
   const placeObject = (point) => {
     if (!placementMode) return;
+
+    const x = clamp(point.x * 32 + WORLD_PX / 2, 90, WORLD_PX - 90);
+    const y = clamp(point.z * 32 + WORLD_PX / 2, 90, WORLD_PX - 90);
+
+    if (!isPointInsideOwnedLand(x, y, gs.current.placements.landTiles, 40)) {
+      showToast('Ставить можно только внутри купленного участка.');
+      return;
+    }
+
     if (balanceRef.current < placementMode.cost) {
       showToast('Не хватает монет.');
       setPlacementMode(null);
       return;
     }
 
-    const x = clamp(point.x * 32 + WORLD_PX / 2, 90, WORLD_PX - 90);
-    const y = clamp(point.z * 32 + WORLD_PX / 2, 90, WORLD_PX - 90);
     const nextBalance = balanceRef.current - placementMode.cost;
-
     if (placementMode.type === 'plot') {
       gs.current.placements.plots.push({
         id: createEntityId(),
@@ -315,9 +356,24 @@ export default function App() {
     syncState(nextBalance).catch(() => {});
   };
 
-  const cancelPlacement = () => {
-    setPlacementMode(null);
+  const buyExpansion = (column) => {
+    if (balanceRef.current < LAND_EXPANSION_COST) {
+      showToast('Не хватает монет на расширение участка.');
+      return;
+    }
+    if (gs.current.placements.landTiles.some((tile) => tile.column === column)) return;
+
+    const nextBalance = balanceRef.current - LAND_EXPANSION_COST;
+    gs.current.placements.landTiles.push({ id: createEntityId(), column });
+    gs.current.placements.landTiles.sort((a, b) => a.column - b.column);
+    applyBalance(nextBalance);
+    refreshViewState();
+    tg.HapticFeedback?.impactOccurred('medium');
+    showToast('Новый участок куплен.');
+    syncState(nextBalance).catch(() => {});
   };
+
+  const cancelPlacement = () => setPlacementMode(null);
 
   const buyAnimal = (type) => {
     const animalDef = ANIMALS[type];
@@ -419,38 +475,43 @@ export default function App() {
   });
 
   const warehouseCapacity = getWarehouseCapacity(viewState.placements.buildings);
+  const expansionOptions = getExpansionOptions(viewState.placements.landTiles);
 
   return (
     <>
       <FarmScene
         now={now}
+        landTiles={viewState.placements.landTiles}
         plots={enrichedPlots}
         buildings={viewState.placements.buildings}
         animals={viewState.animals}
         products={viewState.products}
         warehouseStored={viewState.warehouse.length}
+        expansionCost={LAND_EXPANSION_COST}
+        expansionOptions={expansionOptions}
         zoom={zoom}
         placementMode={placementMode}
         onGroundPlace={placeObject}
         onPlotPlant={(fieldId) => setSeedFor(fieldId)}
         onPlotHarvest={doHarvest}
         onCollectProduct={collectProduct}
+        onExpand={buyExpansion}
       />
 
       <div className="hud">
         <div>
           <div className="hud-title">Happy Farm Telegram</div>
-          <div className="hud-subtitle">Пустой участок, река, деревья и ручная застройка</div>
+          <div className="hud-subtitle">Объемные участки, боковая река и расширение земли по краям</div>
         </div>
         <div className="hud-pills">
           <div className="hud-pill"><span>🪙</span><span>{balance}</span></div>
           <div className="hud-pill"><span>🧺</span><span>{viewState.warehouse.length}/{warehouseCapacity || 0}</span></div>
-          <div className="hud-pill"><span>🐾</span><span>{viewState.animals.length}</span></div>
+          <div className="hud-pill"><span>🧱</span><span>{viewState.placements.landTiles.length}</span></div>
         </div>
       </div>
 
       <div className="toolbar">
-        <button className="store-btn" onClick={() => setShopOpen(true)}>Магазин</button>
+        <button className="store-btn" onClick={() => { setShopTab('build'); setShopOpen(true); }}>Магазин</button>
         <button className="store-btn store-btn--secondary" onClick={sellWarehouse} disabled={!viewState.warehouse.length || viewState.truckTime > 0}>
           {viewState.truckTime > 0 ? `Доставка ${Math.ceil(viewState.truckTime)}с` : 'Продать'}
         </button>
@@ -469,7 +530,7 @@ export default function App() {
       {placementMode && (
         <div className="placement-banner">
           <strong>{placementMode.name}</strong>
-          <span>Выбери место на карте. Списания пока не было.</span>
+          <span>Ткни по купленной плитке земли. Списание произойдет после установки.</span>
         </div>
       )}
 
@@ -477,14 +538,14 @@ export default function App() {
 
       <AnimatePresence>
         {seedFor !== null && (
-          <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => {
+          <Motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => {
             if (event.target === event.currentTarget) setSeedFor(null);
           }}>
-            <motion.div className="modal-sheet" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}>
+            <Motion.div className="modal-sheet" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}>
               <div className="modal-head">
                 <div>
                   <h2>Что посадим?</h2>
-                  <p>Новая грядка работает сразу после установки.</p>
+                  <p>Грядка уже стоит. Осталось выбрать культуру.</p>
                 </div>
                 <button className="sheet-close" onClick={() => setSeedFor(null)}>✕</button>
               </div>
@@ -502,19 +563,19 @@ export default function App() {
                   </button>
                 ))}
               </div>
-            </motion.div>
-          </motion.div>
+            </Motion.div>
+          </Motion.div>
         )}
 
         {shopOpen && (
-          <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => {
+          <Motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => {
             if (event.target === event.currentTarget) setShopOpen(false);
           }}>
-            <motion.div className="modal-sheet modal-sheet--shop" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}>
+            <Motion.div className="modal-sheet modal-sheet--shop" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}>
               <div className="modal-head">
                 <div>
                   <h2>Магазин</h2>
-                  <p>Покупка теперь не открывает пустую страницу: все в одном окне.</p>
+                  <p>Покупай объекты, затем ставь их на купленную землю.</p>
                 </div>
                 <button className="sheet-close" onClick={() => setShopOpen(false)}>✕</button>
               </div>
@@ -561,8 +622,8 @@ export default function App() {
                   })}
                 </div>
               )}
-            </motion.div>
-          </motion.div>
+            </Motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </>

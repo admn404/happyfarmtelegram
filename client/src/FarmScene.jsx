@@ -1,14 +1,31 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, OrthographicCamera, RoundedBox, Text } from '@react-three/drei';
+import { Html, OrthographicCamera, RoundedBox } from '@react-three/drei';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { ANIMALS, BUILDINGS, CROPS, PRODUCT_ICONS, WORLD_PX, PX_PER_UNIT, clamp, pointToWorld } from './gameData';
+import {
+  ANIMALS,
+  BUILDINGS,
+  CROPS,
+  LAND_BLOCK_HEIGHT_PX,
+  LAND_TILE_DEPTH_PX,
+  LAND_TILE_WIDTH_PX,
+  PRODUCT_ICONS,
+  WORLD_PX,
+  PX_PER_UNIT,
+  clamp,
+  getLandColumns,
+  getLandTileCenter,
+  pointToWorld,
+} from './gameData';
 
-const GROUND_SIZE = WORLD_PX / PX_PER_UNIT;
+const WORLD_SIZE = WORLD_PX / PX_PER_UNIT;
+const TILE_WIDTH = LAND_TILE_WIDTH_PX / PX_PER_UNIT;
+const TILE_DEPTH = LAND_TILE_DEPTH_PX / PX_PER_UNIT;
+const TILE_HEIGHT = LAND_BLOCK_HEIGHT_PX / PX_PER_UNIT;
 
 function CameraRig({ zoom }) {
   const cameraRef = useRef(null);
-  const target = useRef(new THREE.Vector3(0, 0, 0));
+  const target = useRef(new THREE.Vector3(4, 0, 0));
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
   const { gl, invalidate } = useThree();
@@ -26,9 +43,9 @@ function CameraRig({ zoom }) {
       const dx = event.clientX - last.current.x;
       const dy = event.clientY - last.current.y;
       last.current = { x: event.clientX, y: event.clientY };
-      const dragScale = 0.02 * (28 / zoom);
-      target.current.x = clamp(target.current.x - dx * dragScale, -20, 20);
-      target.current.z = clamp(target.current.z - dy * dragScale, -20, 20);
+      const dragScale = 0.025 * (26 / zoom);
+      target.current.x = clamp(target.current.x - dx * dragScale, -8, 34);
+      target.current.z = clamp(target.current.z - dy * dragScale, -18, 18);
       invalidate();
     };
 
@@ -56,53 +73,88 @@ function CameraRig({ zoom }) {
     cameraRef.current.updateProjectionMatrix();
   });
 
-  return <OrthographicCamera ref={cameraRef} makeDefault zoom={zoom} position={[24, 20, 24]} near={0.1} far={200} />;
+  return <OrthographicCamera ref={cameraRef} makeDefault zoom={zoom} position={[28, 20, 24]} near={0.1} far={250} />;
 }
 
-function Terrain() {
+function SkyGround() {
   const patches = useMemo(
     () => [
-      { position: [-13, 0.01, -10], rotation: 0.4, color: '#5b8f42', size: [10, 7] },
-      { position: [12, 0.01, 12], rotation: -0.3, color: '#5d9544', size: [11, 8] },
-      { position: [13, 0.01, -14], rotation: 0.6, color: '#79a85d', size: [6, 8] },
-      { position: [-17, 0.01, 13], rotation: -0.7, color: '#6ea750', size: [9, 6] },
+      { position: [10, -TILE_HEIGHT - 0.02, 10], rotation: 0.3, color: '#5e9447', size: [18, 12] },
+      { position: [24, -TILE_HEIGHT - 0.03, -9], rotation: -0.42, color: '#6ca350', size: [14, 11] },
+      { position: [-12, -TILE_HEIGHT - 0.03, -12], rotation: -0.7, color: '#5c8f42', size: [16, 12] },
     ],
     [],
   );
 
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
-        <meshStandardMaterial color="#7dc85d" />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[8, -TILE_HEIGHT - 0.06, 0]} receiveShadow>
+        <planeGeometry args={[WORLD_SIZE * 1.5, WORLD_SIZE * 1.4]} />
+        <meshStandardMaterial color="#77bd55" />
       </mesh>
       {patches.map((patch, index) => (
         <mesh key={index} position={patch.position} rotation={[-Math.PI / 2, 0, patch.rotation]} receiveShadow>
           <planeGeometry args={patch.size} />
-          <meshStandardMaterial color={patch.color} transparent opacity={0.3} />
+          <meshStandardMaterial color={patch.color} transparent opacity={0.28} />
         </mesh>
       ))}
-      <mesh rotation={[-Math.PI / 2, 0.12, 0]} position={[-3, 0.03, 0]}>
-        <planeGeometry args={[6.5, GROUND_SIZE * 1.2]} />
-        <meshStandardMaterial color="#56b9ff" transparent opacity={0.92} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0.12, 0]} position={[-3.9, 0.02, 0]}>
-        <planeGeometry args={[0.75, GROUND_SIZE * 1.2]} />
-        <meshStandardMaterial color="#d6c17f" transparent opacity={0.85} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0.12, 0]} position={[0.45, 0.02, 0]}>
-        <planeGeometry args={[0.75, GROUND_SIZE * 1.2]} />
-        <meshStandardMaterial color="#d6c17f" transparent opacity={0.85} />
-      </mesh>
     </group>
   );
 }
 
-function DecorativeTrees() {
+function River({ landTiles }) {
+  const flowLines = useRef([]);
+  const columns = getLandColumns(landTiles);
+  const leftCenter = getLandTileCenter(columns[0]);
+  const rightCenter = getLandTileCenter(columns[columns.length - 1]);
+  const [x, z] = pointToWorld(leftCenter.x, leftCenter.y);
+  const [, zRight] = pointToWorld(rightCenter.x, rightCenter.y);
+  const riverX = x - TILE_WIDTH * 0.78;
+  const riverLength = Math.max(TILE_DEPTH * 1.8, Math.abs(zRight - z) + TILE_DEPTH * 1.4);
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    flowLines.current.forEach((line, index) => {
+      if (!line) return;
+      line.position.z = ((t * 2.2) + index * 1.8) % riverLength - riverLength / 2;
+    });
+  });
+
+  return (
+    <group position={[riverX, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -TILE_HEIGHT + 0.06, 0]} receiveShadow>
+        <planeGeometry args={[3.6, riverLength]} />
+        <meshStandardMaterial color="#5dc7ff" emissive="#2fb2ff" emissiveIntensity={0.22} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-1.95, -TILE_HEIGHT + 0.07, 0]}>
+        <planeGeometry args={[0.8, riverLength]} />
+        <meshStandardMaterial color="#d6c68b" />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[1.95, -TILE_HEIGHT + 0.07, 0]}>
+        <planeGeometry args={[0.75, riverLength]} />
+        <meshStandardMaterial color="#d4c080" />
+      </mesh>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <mesh
+          key={index}
+          ref={(node) => { flowLines.current[index] = node; }}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -TILE_HEIGHT + 0.09, index * 1.8]}
+        >
+          <planeGeometry args={[2.25, 0.42]} />
+          <meshStandardMaterial color="#dff7ff" transparent opacity={0.38} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function DecorativeTrees({ landTiles }) {
+  const columns = getLandColumns(landTiles);
+  const leftEdge = columns[0] * TILE_WIDTH;
   const trees = useMemo(
     () => [
-      [-24, 0, -20], [-20, 0, -16], [-22, 0, -10], [18, 0, -18], [23, 0, -13],
-      [-24, 0, 16], [23, 0, 18], [20, 0, 12], [18, 0, 6], [-19, 0, 10],
+      [-12, -6], [-10, 8], [-13, 13], [18, -12], [21, -6], [23, 11], [28, 15], [13, 16],
     ],
     [],
   );
@@ -110,7 +162,7 @@ function DecorativeTrees() {
   return (
     <group>
       {trees.map((position, index) => (
-        <group key={index} position={position}>
+        <group key={index} position={[position[0] + leftEdge * 0.08, -TILE_HEIGHT, position[1]]}>
           <mesh castShadow position={[0, 1.15, 0]}>
             <cylinderGeometry args={[0.24, 0.34, 2.3, 8]} />
             <meshStandardMaterial color="#7a4a1f" />
@@ -119,12 +171,54 @@ function DecorativeTrees() {
             <coneGeometry args={[1.7, 3.6, 10]} />
             <meshStandardMaterial color="#2f7a3d" />
           </mesh>
-          <mesh castShadow position={[0.15, 4.3, 0.1]}>
-            <sphereGeometry args={[1.15, 12, 12]} />
+          <mesh castShadow position={[0.15, 4.25, 0.1]}>
+            <sphereGeometry args={[1.1, 12, 12]} />
             <meshStandardMaterial color="#3e9b47" />
           </mesh>
         </group>
       ))}
+    </group>
+  );
+}
+
+function LandTile({ column }) {
+  const center = getLandTileCenter(column);
+  const [x, z] = pointToWorld(center.x, center.y);
+
+  return (
+    <group position={[x, -TILE_HEIGHT / 2, z]}>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[TILE_WIDTH, TILE_HEIGHT, TILE_DEPTH]} />
+        <meshStandardMaterial color="#8e5c30" />
+      </mesh>
+      <mesh position={[0, TILE_HEIGHT / 2 + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[TILE_WIDTH * 0.98, TILE_DEPTH * 0.98]} />
+        <meshStandardMaterial color="#7dc85d" />
+      </mesh>
+      <mesh position={[0, TILE_HEIGHT / 2 + 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[TILE_WIDTH * 0.84, TILE_DEPTH * 0.84]} />
+        <meshStandardMaterial color="#6fb654" />
+      </mesh>
+    </group>
+  );
+}
+
+function ExpansionNode({ column, cost, onExpand }) {
+  const center = getLandTileCenter(column);
+  const [x, z] = pointToWorld(center.x, center.y);
+
+  return (
+    <group position={[x, 0.8, z]} onClick={(event) => { event.stopPropagation(); onExpand(column); }}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.9, 1.05, 0.4, 24]} />
+        <meshStandardMaterial color="#dffb9c" emissive="#bdf160" emissiveIntensity={0.25} />
+      </mesh>
+      <Html position={[0, 0.03, 0]} center distanceFactor={8} transform sprite>
+        <div className="scene-plus">+</div>
+      </Html>
+      <Html position={[0, 1.3, 0]} center distanceFactor={12} transform>
+        <div className="scene-badge scene-badge--expand">{cost}🪙</div>
+      </Html>
     </group>
   );
 }
@@ -143,7 +237,7 @@ function PlotCrop({ crop, isReady, now }) {
         const height = (crop.type === 'corn' ? 1.45 : 1.05) * phase;
 
         return (
-          <group key={index} position={[Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius * 0.7]}>
+          <group key={index} position={[Math.cos(angle) * radius, 0.18, Math.sin(angle) * radius * 0.7]}>
             <mesh castShadow position={[0, height / 2, 0]}>
               <cylinderGeometry args={[0.05, 0.07, height, 6]} />
               <meshStandardMaterial color={def.palette[0]} />
@@ -197,10 +291,11 @@ function PlotNode({ plot, now, onPlant, onHarvest }) {
 
 function BuildingNode({ building, animalsCount, warehouseStored }) {
   const [x, z] = pointToWorld(building.x, building.y);
+  const groundY = 0.06;
 
   if (building.type === 'warehouse') {
     return (
-      <group position={[x, 0, z]}>
+      <group position={[x, groundY, z]}>
         <RoundedBox args={[4.1, 2.5, 3.4]} radius={0.14} castShadow receiveShadow>
           <meshStandardMaterial color="#d28a42" />
         </RoundedBox>
@@ -217,7 +312,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
 
   if (building.type === 'coop') {
     return (
-      <group position={[x, 0, z]}>
+      <group position={[x, groundY, z]}>
         <RoundedBox args={[3.4, 1.9, 2.7]} radius={0.12} castShadow receiveShadow>
           <meshStandardMaterial color="#f4d7a4" />
         </RoundedBox>
@@ -233,7 +328,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
   }
 
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, groundY, z]}>
       <RoundedBox args={[3.8, 1.7, 2.9]} radius={0.12} castShadow receiveShadow>
         <meshStandardMaterial color="#efb1bf" />
       </RoundedBox>
@@ -301,7 +396,7 @@ function AnimalNode({ animal }) {
   );
 }
 
-function SceneRoot({ now, plots, buildings, animals, products, warehouseStored, placementMode, zoom, onGroundPlace, onPlotPlant, onPlotHarvest, onCollectProduct }) {
+function SceneRoot({ now, landTiles, plots, buildings, animals, products, warehouseStored, expansionCost, expansionOptions, placementMode, zoom, onGroundPlace, onPlotPlant, onPlotHarvest, onCollectProduct, onExpand }) {
   const buildingAnimals = Object.fromEntries(buildings.map((building) => [building.id, 0]));
   animals.forEach((animal) => {
     if (buildingAnimals[animal.homeId] !== undefined) buildingAnimals[animal.homeId] += 1;
@@ -322,20 +417,23 @@ function SceneRoot({ now, plots, buildings, animals, products, warehouseStored, 
         shadow-camera-top={35}
         shadow-camera-bottom={-35}
       />
-      <fog attach="fog" args={['#c0e2ff', 28, 75]} />
+      <fog attach="fog" args={['#c0e2ff', 22, 75]} />
       <color attach="background" args={['#9ad8ff']} />
       <CameraRig zoom={zoom} />
-      <Terrain />
-      <DecorativeTrees />
+      <SkyGround />
+      <River landTiles={landTiles} />
+      <DecorativeTrees landTiles={landTiles} />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} onClick={(event) => onGroundPlace(event.point)}>
-        <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[8, 0.001, 0]} onClick={(event) => onGroundPlace(event.point)}>
+        <planeGeometry args={[WORLD_SIZE * 1.5, WORLD_SIZE * 1.4]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
-      {plots.map((plot) => (
-        <PlotNode key={plot.id} plot={plot} now={now} onPlant={onPlotPlant} onHarvest={onPlotHarvest} />
+      {landTiles.map((tile) => <LandTile key={tile.id} column={tile.column} />)}
+      {expansionOptions.map((option) => (
+        <ExpansionNode key={option.side} column={option.column} cost={expansionCost} onExpand={onExpand} />
       ))}
+      {plots.map((plot) => <PlotNode key={plot.id} plot={plot} now={now} onPlant={onPlotPlant} onHarvest={onPlotHarvest} />)}
       {buildings.map((building) => (
         <BuildingNode
           key={building.id}
@@ -348,9 +446,9 @@ function SceneRoot({ now, plots, buildings, animals, products, warehouseStored, 
       {products.map((product) => <ProductNode key={product.id} product={product} onCollect={onCollectProduct} />)}
 
       {placementMode && (
-        <Text position={[0, 0.35, -22]} rotation={[-Math.PI / 2, 0, 0]} fontSize={1.1} color="#f9fff2">
-          Tap ground to place {placementMode.name}
-        </Text>
+        <Html position={[0, 1, -12]} center distanceFactor={12} transform>
+          <div className="scene-badge scene-badge--placement">Ставим: {placementMode.name}</div>
+        </Html>
       )}
     </>
   );
@@ -362,7 +460,7 @@ export default function FarmScene(props) {
       <Canvas shadows dpr={[1, 1.5]}>
         <SceneRoot {...props} />
       </Canvas>
-      <div className="scene-tip">Пустой участок уже живой: ставь грядки и здания прямо по земле.</div>
+      <div className="scene-tip">Участок теперь собирается из плиток земли. Расширяй боковыми плюсами.</div>
     </div>
   );
 }

@@ -3,9 +3,12 @@ export const PX_PER_UNIT = 32;
 export const MIN_ZOOM = 14;
 export const MAX_ZOOM = 32;
 
-export const FALLBACK_LAYOUT = {
-  scales: { animal: 1, crop: 1, product: 1 },
-};
+export const LAND_TILE_WIDTH_PX = 420;
+export const LAND_TILE_DEPTH_PX = 420;
+export const LAND_BLOCK_HEIGHT_PX = 56;
+export const LAND_EXPANSION_COST = 5000;
+export const BASE_TILE_CENTER_X = WORLD_PX / 2 + 140;
+export const BASE_TILE_CENTER_Y = WORLD_PX / 2;
 
 export const CROPS = {
   wheat: {
@@ -136,9 +139,40 @@ export function pointFromWorld(x, z) {
   };
 }
 
-export function rectToWorld(rect) {
-  const width = rect.w / PX_PER_UNIT;
-  const depth = rect.h / PX_PER_UNIT;
-  const [x, z] = pointToWorld(rect.x + rect.w / 2, rect.y + rect.h / 2);
-  return { x, z, width, depth };
+export function getLandTileCenter(column) {
+  return {
+    x: BASE_TILE_CENTER_X + column * LAND_TILE_WIDTH_PX,
+    y: BASE_TILE_CENTER_Y,
+  };
+}
+
+export function getLandTileRect(column) {
+  const center = getLandTileCenter(column);
+  return {
+    x: center.x - LAND_TILE_WIDTH_PX / 2,
+    y: center.y - LAND_TILE_DEPTH_PX / 2,
+    w: LAND_TILE_WIDTH_PX,
+    h: LAND_TILE_DEPTH_PX,
+    cx: center.x,
+    cy: center.y,
+  };
+}
+
+export function getLandColumns(landTiles) {
+  const columns = (landTiles || []).map((tile) => tile.column);
+  return columns.length ? columns.sort((a, b) => a - b) : [0];
+}
+
+export function isPointInsideTile(x, y, column, margin = 0) {
+  const rect = getLandTileRect(column);
+  return (
+    x >= rect.x + margin &&
+    x <= rect.x + rect.w - margin &&
+    y >= rect.y + margin &&
+    y <= rect.y + rect.h - margin
+  );
+}
+
+export function isPointInsideOwnedLand(x, y, landTiles, margin = 0) {
+  return getLandColumns(landTiles).some((column) => isPointInsideTile(x, y, column, margin));
 }

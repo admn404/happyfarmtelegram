@@ -32,6 +32,10 @@ body {
   user-select: none;
 }
 
+#root {
+  isolation: isolate;
+}
+
 button,
 input,
 textarea {
@@ -45,6 +49,7 @@ textarea {
 
 .scene-shell canvas {
   display: block;
+  touch-action: none;
 }
 
 .scene-shell::before {
@@ -118,16 +123,6 @@ textarea {
   color: #fcfff6;
   backdrop-filter: blur(14px);
   box-shadow: 0 16px 36px rgba(14, 28, 19, 0.22);
-}
-
-.store-bar {
-  position: fixed;
-  left: 18px;
-  right: 18px;
-  bottom: 18px;
-  z-index: 10;
-  display: flex;
-  gap: 12px;
 }
 
 .toolbar {
@@ -207,6 +202,7 @@ textarea {
   justify-content: center;
   background: rgba(8, 16, 11, 0.42);
   backdrop-filter: blur(18px);
+  touch-action: auto;
 }
 
 .modal-sheet {
@@ -218,6 +214,8 @@ textarea {
     linear-gradient(180deg, rgba(19, 36, 24, 0.96) 0%, rgba(12, 22, 15, 0.98) 100%);
   border: 1px solid rgba(229, 255, 187, 0.12);
   box-shadow: 0 -12px 40px rgba(5, 12, 7, 0.35);
+  pointer-events: auto;
+  touch-action: auto;
 }
 
 .modal-handle {
@@ -510,6 +508,16 @@ textarea {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.scene-badge--expand {
+  background: rgba(204, 255, 101, 0.86);
+  color: #17340f;
+}
+
+.scene-badge--placement {
+  background: rgba(255, 224, 132, 0.92);
+  color: #3d2b0e;
+}
+
 .scene-icon {
   display: inline-flex;
   align-items: center;
@@ -520,6 +528,20 @@ textarea {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 18px rgba(60, 42, 11, 0.18);
+}
+
+.scene-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1b4813;
+  font-size: 26px;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(47, 84, 24, 0.22);
 }
 
 .scene-health {
