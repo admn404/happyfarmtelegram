@@ -89,7 +89,7 @@ export default function MainMenu({ onPlay }) {
                     <div key={l.id} className="leader-item">
                       <span className="leader-rank">#{i+1}</span>
                       <span className="leader-name">{l.name || `Игрок ${l.id.slice(0, 5)}`}</span>
-                      <span className="leader-score">{l.total_earned.toLocaleString()} 🪙</span>
+                      <span className="leader-score">{(l.total_earned || 0).toLocaleString()} 🪙</span>
                     </div>
                   ))
                 )}

@@ -6,6 +6,7 @@ import MainMenu from './MainMenu';
 import {
   ANIMALS,
   BASE_TILE_CENTER_X,
+  BASE_TILE_CENTER_Y,
   BUILDINGS,
   CROPS,
   LAND_EXPANSION_COST,
