@@ -9,12 +9,14 @@ import {
   LAND_BLOCK_HEIGHT_PX,
   LAND_TILE_DEPTH_PX,
   LAND_TILE_WIDTH_PX,
+  PLACEABLES,
   PRODUCT_ICONS,
   PX_PER_UNIT,
   clamp,
   getLandBounds,
   getLandTileCenter,
   pointToWorld,
+  snapToPlotGrid,
 } from './gameData';
 
 const TILE_WIDTH = LAND_TILE_WIDTH_PX / PX_PER_UNIT;
@@ -70,7 +72,7 @@ function CameraRig({ zoom, landTiles }) {
   );
 }
 
-function LandTile({ column, row, onPlace, isSelected, onSelect }) {
+function LandTile({ column, row, onPlace, isSelected, onSelect, onHover }) {
   const center = getLandTileCenter(column, row);
   const [x, z] = pointToWorld(center.x, center.y);
 
@@ -89,6 +91,9 @@ function LandTile({ column, row, onPlace, isSelected, onSelect }) {
         position={[0, TILE_HEIGHT / 2 + 0.02, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
+        onPointerMove={(event) => {
+          if (onHover) onHover(event.point);
+        }}
         onClick={(event) => {
           if (onSelect) {
             event.stopPropagation();
@@ -256,6 +261,45 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
   );
 }
 
+function PreviewNode({ placementMode, hoverPoint, animalsCount, warehouseStored }) {
+  if (!placementMode || !hoverPoint) return null;
+
+  const rawX = hoverPoint.x * 32 + 1024;
+  const rawY = hoverPoint.z * 32 + 1024;
+
+  let finalX = rawX;
+  let finalY = rawY;
+
+  if (placementMode.type === 'plot') {
+    const snapped = snapToPlotGrid(rawX, rawY);
+    finalX = snapped.cx;
+    finalY = snapped.cy;
+  }
+
+  const [wx, wz] = pointToWorld(finalX, finalY);
+
+  return (
+    <group position={[wx, 0.2, wz]}>
+      <group opacity={0.5} transparent>
+        <BuildingNode
+          building={{ type: placementMode.id, x: finalX, y: finalY }}
+          animalsCount={0}
+          warehouseStored={0}
+        />
+        {placementMode.type === 'plot' && (
+          <RoundedBox args={[placementMode.width / 32, 0.3, placementMode.depth / 32]} radius={0.1} smoothness={4}>
+            <meshStandardMaterial color="#ffffff" transparent opacity={0.4} />
+          </RoundedBox>
+        )}
+      </group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
+        <planeGeometry args={[placementMode.width / 32, placementMode.depth / 32]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.2} />
+      </mesh>
+    </group>
+  );
+}
+
 function ProductNode({ product, onCollect }) {
   const [x, z] = pointToWorld(product.x, product.y);
 
@@ -316,10 +360,18 @@ function SceneRoot({
   onPlotHarvest, onCollectProduct, onExpand,
   selectedTile, onTileSelect,
 }) {
+  const [hoverPoint, setHoverPoint] = useRef(null);
+  const [, forceUpdate] = useState(0);
+
   const buildingAnimals = Object.fromEntries(buildings.map((building) => [building.id, 0]));
   animals.forEach((animal) => {
     if (buildingAnimals[animal.homeId] !== undefined) buildingAnimals[animal.homeId] += 1;
   });
+
+  const handleHover = (point) => {
+    hoverPoint.current = point;
+    forceUpdate((v) => v + 1);
+  };
 
   return (
     <>
@@ -348,11 +400,14 @@ function SceneRoot({
           onPlace={onGroundPlace}
           isSelected={selectedTile && selectedTile.column === tile.column && selectedTile.row === tile.row}
           onSelect={onTileSelect}
+          onHover={placementMode ? handleHover : null}
         />
       ))}
-      {expansionOptions.map((option) => (
-        <ExpansionNode key={`${option.column},${option.row}`} column={option.column} row={option.row} side={option.side} cost={expansionCost} onExpand={onExpand} />
-      ))}
+
+      {placementMode && hoverPoint.current && (
+        <PreviewNode placementMode={placementMode} hoverPoint={hoverPoint.current} />
+      )}
+
       {plots.map((plot) => <PlotNode key={plot.id} plot={plot} now={now} onPlant={onPlotPlant} onHarvest={onPlotHarvest} />)}
       {buildings.map((building) => (
         <BuildingNode
