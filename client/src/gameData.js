@@ -7,7 +7,7 @@ export const LAND_TILE_WIDTH_PX = 360;
 export const LAND_TILE_DEPTH_PX = 360;
 export const LAND_BLOCK_HEIGHT_PX = 42;
 export const LAND_EXPANSION_COST = 5000;
-export const BASE_TILE_CENTER_X = WORLD_PX / 2 + 140;
+export const BASE_TILE_CENTER_X = WORLD_PX / 2;
 export const BASE_TILE_CENTER_Y = WORLD_PX / 2;
 export const TILE_PLOT_LIMIT = 4;
 
@@ -140,15 +140,15 @@ export function pointFromWorld(x, z) {
   };
 }
 
-export function getLandTileCenter(column) {
+export function getLandTileCenter(column, row = 0) {
   return {
     x: BASE_TILE_CENTER_X + column * LAND_TILE_WIDTH_PX,
-    y: BASE_TILE_CENTER_Y,
+    y: BASE_TILE_CENTER_Y + row * LAND_TILE_DEPTH_PX,
   };
 }
 
-export function getLandTileRect(column) {
-  const center = getLandTileCenter(column);
+export function getLandTileRect(column, row = 0) {
+  const center = getLandTileCenter(column, row);
   return {
     x: center.x - LAND_TILE_WIDTH_PX / 2,
     y: center.y - LAND_TILE_DEPTH_PX / 2,
@@ -159,13 +159,47 @@ export function getLandTileRect(column) {
   };
 }
 
-export function getLandColumns(landTiles) {
-  const columns = (landTiles || []).map((tile) => tile.column);
-  return columns.length ? columns.sort((a, b) => a - b) : [0];
+export function getLandBounds(landTiles) {
+  if (!landTiles || !landTiles.length) return { minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 };
+  const cols = landTiles.map((t) => t.column);
+  const rows = landTiles.map((t) => t.row || 0);
+  return {
+    minCol: Math.min(...cols),
+    maxCol: Math.max(...cols),
+    minRow: Math.min(...rows),
+    maxRow: Math.max(...rows),
+  };
 }
 
-export function isPointInsideTile(x, y, column, margin = 0) {
-  const rect = getLandTileRect(column);
+export function getExpansionOptions(landTiles) {
+  const options = [];
+  const occupied = new Set(landTiles.map((t) => `${t.column},${t.row || 0}`));
+
+  landTiles.forEach((tile) => {
+    const col = tile.column;
+    const row = tile.row || 0;
+    const neighbors = [
+      { side: 'top', column: col, row: row - 1 },
+      { side: 'bottom', column: col, row: row + 1 },
+      { side: 'left', column: col - 1, row: row },
+      { side: 'right', column: col + 1, row: row },
+    ];
+
+    neighbors.forEach((n) => {
+      const key = `${n.column},${n.row}`;
+      if (!occupied.has(key)) {
+        if (!options.find((o) => o.column === n.column && o.row === n.row)) {
+          options.push(n);
+        }
+      }
+    });
+  });
+
+  return options;
+}
+
+export function isPointInsideTile(x, y, column, row = 0, margin = 0) {
+  const rect = getLandTileRect(column, row);
   return (
     x >= rect.x + margin &&
     x <= rect.x + rect.w - margin &&
@@ -175,20 +209,27 @@ export function isPointInsideTile(x, y, column, margin = 0) {
 }
 
 export function isPointInsideOwnedLand(x, y, landTiles, margin = 0) {
-  return getLandColumns(landTiles).some((column) => isPointInsideTile(x, y, column, margin));
+  return (landTiles || []).some((tile) => isPointInsideTile(x, y, tile.column, tile.row || 0, margin));
 }
 
-export function getPlotSlotCenters(column) {
-  const center = getLandTileCenter(column);
-  const offset = LAND_TILE_WIDTH_PX * 0.23;
-  return [
-    { slot: 0, x: center.x - offset, y: center.y - offset },
-    { slot: 1, x: center.x + offset, y: center.y - offset },
-    { slot: 2, x: center.x - offset, y: center.y + offset },
-    { slot: 3, x: center.x + offset, y: center.y + offset },
-  ];
+export function snapToPlotGrid(x, y) {
+  const w = PLACEABLES.plot.width;
+  const h = PLACEABLES.plot.depth;
+  const ox = BASE_TILE_CENTER_X - LAND_TILE_WIDTH_PX / 2;
+  const oy = BASE_TILE_CENTER_Y - LAND_TILE_DEPTH_PX / 2;
+
+  const col = Math.round((x - ox - w / 2) / w);
+  const row = Math.round((y - oy - h / 2) / h);
+
+  return {
+    cx: ox + col * w + w / 2,
+    cy: oy + row * h + h / 2,
+  };
 }
 
-export function getNearestLandColumn(x) {
-  return Math.round((x - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX);
+export function getNearestLandIndices(x, y) {
+  return {
+    column: Math.round((x - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX),
+    row: Math.round((y - BASE_TILE_CENTER_Y) / LAND_TILE_DEPTH_PX),
+  };
 }

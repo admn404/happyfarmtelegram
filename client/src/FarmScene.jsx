@@ -12,7 +12,7 @@ import {
   PRODUCT_ICONS,
   PX_PER_UNIT,
   clamp,
-  getLandColumns,
+  getLandBounds,
   getLandTileCenter,
   pointToWorld,
 } from './gameData';
@@ -24,26 +24,26 @@ const TILE_HEIGHT = LAND_BLOCK_HEIGHT_PX / PX_PER_UNIT;
 function CameraRig({ zoom, landTiles }) {
   const cameraRef = useRef(null);
   const controlsRef = useRef(null);
-  const columns = useMemo(() => getLandColumns(landTiles), [landTiles]);
+  const bounds = useMemo(() => getLandBounds(landTiles), [landTiles]);
 
-  const minColumn = columns[0];
-  const maxColumn = columns[columns.length - 1];
-  const [minX] = pointToWorld(getLandTileCenter(minColumn).x, getLandTileCenter(minColumn).y);
-  const [maxX] = pointToWorld(getLandTileCenter(maxColumn).x, getLandTileCenter(maxColumn).y);
+  const [minX, minZ] = pointToWorld(getLandTileCenter(bounds.minCol, bounds.minRow).x, getLandTileCenter(bounds.minCol, bounds.minRow).y);
+  const [maxX, maxZ] = pointToWorld(getLandTileCenter(bounds.maxCol, bounds.maxRow).x, getLandTileCenter(bounds.maxCol, bounds.maxRow).y);
+  
   const targetX = (minX + maxX) / 2;
+  const targetZ = (minZ + maxZ) / 2;
 
   useEffect(() => {
     if (!cameraRef.current || !controlsRef.current) return;
-    controlsRef.current.target.set(targetX, 0, 0);
-    cameraRef.current.position.set(targetX + 12.5, 12.5, 12.5);
+    controlsRef.current.target.set(targetX, 0, targetZ);
+    cameraRef.current.position.set(targetX + 12.5, 12.5, targetZ + 12.5);
     controlsRef.current.update();
-  }, [targetX]);
+  }, [targetX, targetZ]);
 
   useFrame(() => {
     if (!cameraRef.current || !controlsRef.current) return;
     const target = controlsRef.current.target;
-    target.x = clamp(target.x, minX - 1.2, maxX + 1.2);
-    target.z = clamp(target.z, -2.8, 2.8);
+    target.x = clamp(target.x, minX - 2.5, maxX + 2.5);
+    target.z = clamp(target.z, minZ - 2.5, maxZ + 2.5);
     cameraRef.current.zoom = THREE.MathUtils.lerp(cameraRef.current.zoom, zoom, 0.12);
     cameraRef.current.updateProjectionMatrix();
     controlsRef.current.update();
@@ -70,8 +70,8 @@ function CameraRig({ zoom, landTiles }) {
   );
 }
 
-function LandTile({ column, onPlace }) {
-  const center = getLandTileCenter(column);
+function LandTile({ column, row, onPlace }) {
+  const center = getLandTileCenter(column, row);
   const [x, z] = pointToWorld(center.x, center.y);
 
   return (
@@ -96,12 +96,12 @@ function LandTile({ column, onPlace }) {
   );
 }
 
-function ExpansionNode({ column, cost, onExpand }) {
-  const center = getLandTileCenter(column);
+function ExpansionNode({ column, row, side, cost, onExpand }) {
+  const center = getLandTileCenter(column, row);
   const [x, z] = pointToWorld(center.x, center.y);
 
   return (
-    <group position={[x, 0.8, z]} onClick={(event) => { event.stopPropagation(); onExpand(column); }}>
+    <group position={[x, 0.8, z]} onClick={(event) => { event.stopPropagation(); onExpand(column, row); }}>
       <mesh visible={false}>
         <cylinderGeometry args={[1.55, 1.55, 2.2, 24]} />
         <meshBasicMaterial transparent opacity={0} />
@@ -318,9 +318,9 @@ function SceneRoot({ now, landTiles, plots, buildings, animals, products, wareho
       <color attach="background" args={['#9ad8ff']} />
       <CameraRig zoom={zoom} landTiles={landTiles} />
 
-      {landTiles.map((tile) => <LandTile key={tile.id} column={tile.column} onPlace={onGroundPlace} />)}
+      {landTiles.map((tile) => <LandTile key={tile.id} column={tile.column} row={tile.row || 0} onPlace={onGroundPlace} />)}
       {expansionOptions.map((option) => (
-        <ExpansionNode key={option.side} column={option.column} cost={expansionCost} onExpand={onExpand} />
+        <ExpansionNode key={`${option.column},${option.row}`} column={option.column} row={option.row} side={option.side} cost={expansionCost} onExpand={onExpand} />
       ))}
       {plots.map((plot) => <PlotNode key={plot.id} plot={plot} now={now} onPlant={onPlotPlant} onHarvest={onPlotHarvest} />)}
       {buildings.map((building) => (

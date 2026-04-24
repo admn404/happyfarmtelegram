@@ -10,17 +10,18 @@ import {
   CROPS,
   LAND_EXPANSION_COST,
   LAND_TILE_WIDTH_PX,
+  LAND_TILE_DEPTH_PX,
   MAX_ZOOM,
   MIN_ZOOM,
   PLACEABLES,
-  TILE_PLOT_LIMIT,
   WORLD_PX,
   clamp,
-  getLandColumns,
+  getLandBounds,
   getLandTileRect,
   getLandTileCenter,
-  getNearestLandColumn,
-  getPlotSlotCenters,
+  getNearestLandIndices,
+  snapToPlotGrid,
+  getExpansionOptions,
   isPointInsideOwnedLand,
 } from './gameData';
 
@@ -32,7 +33,7 @@ const INITIAL_GAME_STATE = {
   truckTime: 0,
   truckReward: 0,
   placements: {
-    landTiles: [{ id: 'land-0', column: 0 }],
+    landTiles: [{ id: 'land-0-0', column: 0, row: 0 }],
     plots: [],
     buildings: [],
   },
@@ -59,21 +60,31 @@ function createSnapshot(state) {
   };
 }
 
-function inferColumnFromX(x) {
-  return Math.round((x - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX);
+function inferIndicesFromPoint(x, y) {
+  return {
+    column: Math.round((x - BASE_TILE_CENTER_X) / LAND_TILE_WIDTH_PX),
+    row: Math.round((y - BASE_TILE_CENTER_Y) / LAND_TILE_DEPTH_PX),
+  };
 }
 
 function normalizeLandTiles(gameState) {
   const explicitTiles = gameState?.placements?.landTiles || [];
   if (explicitTiles.length) return explicitTiles;
 
-  const columns = new Set([0]);
-  for (const plot of gameState?.placements?.plots || []) columns.add(inferColumnFromX(plot.cx));
-  for (const building of gameState?.placements?.buildings || []) columns.add(inferColumnFromX(building.x));
+  const tiles = new Set(['0,0']);
+  for (const plot of gameState?.placements?.plots || []) {
+    const idx = inferIndicesFromPoint(plot.cx, plot.cy);
+    tiles.add(`${idx.column},${idx.row}`);
+  }
+  for (const building of gameState?.placements?.buildings || []) {
+    const idx = inferIndicesFromPoint(building.x, building.y);
+    tiles.add(`${idx.column},${idx.row}`);
+  }
 
-  return [...columns]
-    .sort((a, b) => a - b)
-    .map((column) => ({ id: `land-${column}`, column }));
+  return [...tiles].map((key) => {
+    const [column, row] = key.split(',').map(Number);
+    return { id: `land-${column}-${row}`, column, row };
+  });
 }
 
 function normalizeGameState(gameState, fields) {
@@ -98,14 +109,13 @@ function getWarehouseCapacity(buildings) {
   return buildings.filter((building) => building.type === 'warehouse').length * BUILDINGS.warehouse.capacity;
 }
 
-function getExpansionOptions(landTiles) {
-  const columns = getLandColumns(landTiles);
-  const min = columns[0];
-  const max = columns[columns.length - 1];
-  return [
-    { side: 'left', column: min - 1 },
-    { side: 'right', column: max + 1 },
-  ];
+function checkOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
+  return (
+    x1 - w1 / 2 < x2 + w2 / 2 &&
+    x1 + w1 / 2 > x2 - w2 / 2 &&
+    y1 - h1 / 2 < y2 + h2 / 2 &&
+    y1 + h1 / 2 > y2 - h2 / 2
+  );
 }
 
 export default function App() {
@@ -216,8 +226,8 @@ export default function App() {
       state.animals.forEach((animal, index) => {
         const home = state.placements.buildings.find((building) => building.id === animal.homeId)
           || state.placements.buildings.find((building) => building.type === getAnimalHomeBuilding(animal.type));
-        const centerX = home?.x ?? getLandTileCenter(0).x;
-        const centerY = home?.y ?? getLandTileCenter(0).y;
+        const centerX = home?.x ?? getLandTileCenter(0, 0).x;
+        const centerY = home?.y ?? getLandTileCenter(0, 0).y;
         const roamRadius = home ? 110 : 140;
 
         if (animal.state === 'idle') {
@@ -320,10 +330,20 @@ export default function App() {
   const placeObject = (point) => {
     if (!placementMode) return;
 
-    const x = clamp(point.x * 32 + WORLD_PX / 2, 90, WORLD_PX - 90);
-    const y = clamp(point.z * 32 + WORLD_PX / 2, 90, WORLD_PX - 90);
+    const rawX = point.x * 32 + WORLD_PX / 2;
+    const rawY = point.z * 32 + WORLD_PX / 2;
 
-    if (!isPointInsideOwnedLand(x, y, gs.current.placements.landTiles, 40)) {
+    let finalX = rawX;
+    let finalY = rawY;
+
+    if (placementMode.type === 'plot') {
+      const snapped = snapToPlotGrid(rawX, rawY);
+      finalX = snapped.cx;
+      finalY = snapped.cy;
+    }
+
+    const margin = 30;
+    if (!isPointInsideOwnedLand(finalX, finalY, gs.current.placements.landTiles, margin)) {
       showToast('Ставить можно только внутри купленного участка.');
       return;
     }
@@ -334,53 +354,41 @@ export default function App() {
       return;
     }
 
-    const column = getNearestLandColumn(x);
-    const tileRect = getLandTileRect(column);
-    const tilePlots = gs.current.placements.plots.filter((plot) => getNearestLandColumn(plot.cx) === column);
-    const tileBuildings = gs.current.placements.buildings.filter((building) => getNearestLandColumn(building.x) === column);
+    const objW = placementMode.width;
+    const objH = placementMode.depth;
+
+    // Check overlaps
+    const isOverlappingPlot = gs.current.placements.plots.some((p) =>
+      checkOverlap(finalX, finalY, objW, objH, p.cx, p.cy, p.w, p.h)
+    );
+    const isOverlappingBuilding = gs.current.placements.buildings.some((b) => {
+      const bDef = PLACEABLES[b.type];
+      return checkOverlap(finalX, finalY, objW, objH, b.x, b.y, bDef.width, bDef.depth);
+    });
+
+    if (isOverlappingPlot || isOverlappingBuilding) {
+      showToast('Тут уже что-то стоит.');
+      return;
+    }
+
     const nextBalance = balanceRef.current - placementMode.cost;
 
     if (placementMode.type === 'plot') {
-      if (tileBuildings.length) {
-        showToast('На участке со строением грядки ставить нельзя.');
-        return;
-      }
-      if (tilePlots.length >= TILE_PLOT_LIMIT) {
-        showToast('На одном участке помещается только 4 грядки.');
-        return;
-      }
-      const occupiedSlots = new Set(tilePlots.map((plot) => plot.slot));
-      const nearestSlot = getPlotSlotCenters(column)
-        .filter((slot) => !occupiedSlots.has(slot.slot))
-        .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
-
-      if (!nearestSlot) {
-        showToast('Свободных слотов под грядки нет.');
-        return;
-      }
-
       gs.current.placements.plots.push({
         id: createEntityId(),
         fieldId: gs.current.nextFieldId,
-        column,
-        slot: nearestSlot.slot,
-        cx: nearestSlot.x,
-        cy: nearestSlot.y,
-        w: placementMode.width,
-        h: placementMode.depth,
+        cx: finalX,
+        cy: finalY,
+        w: objW,
+        h: objH,
       });
       gs.current.nextFieldId += 1;
     } else {
-      if (tileBuildings.length || tilePlots.length) {
-        showToast('На этом участке уже что-то стоит. Для здания нужен свободный целый участок.');
-        return;
-      }
       gs.current.placements.buildings.push({
         id: createEntityId(),
         type: placementMode.id,
-        column,
-        x: tileRect.cx,
-        y: tileRect.cy,
+        x: finalX,
+        y: finalY,
       });
     }
 
@@ -391,16 +399,15 @@ export default function App() {
     syncState(nextBalance).catch(() => {});
   };
 
-  const buyExpansion = (column) => {
+  const buyExpansion = (column, row) => {
     if (balanceRef.current < LAND_EXPANSION_COST) {
       showToast('Не хватает монет на расширение участка.');
       return;
     }
-    if (gs.current.placements.landTiles.some((tile) => tile.column === column)) return;
+    if (gs.current.placements.landTiles.some((tile) => tile.column === column && tile.row === row)) return;
 
     const nextBalance = balanceRef.current - LAND_EXPANSION_COST;
-    gs.current.placements.landTiles.push({ id: createEntityId(), column });
-    gs.current.placements.landTiles.sort((a, b) => a.column - b.column);
+    gs.current.placements.landTiles.push({ id: createEntityId(), column, row });
     applyBalance(nextBalance);
     refreshViewState();
     tg.HapticFeedback?.impactOccurred('medium');
@@ -408,10 +415,9 @@ export default function App() {
     syncState(nextBalance).catch(() => {});
   };
 
-  const addLandEditor = (column) => {
-    if (gs.current.placements.landTiles.some((tile) => tile.column === column)) return;
-    gs.current.placements.landTiles.push({ id: createEntityId(), column });
-    gs.current.placements.landTiles.sort((a, b) => a.column - b.column);
+  const addLandEditor = (column, row) => {
+    if (gs.current.placements.landTiles.some((tile) => tile.column === column && tile.row === row)) return;
+    gs.current.placements.landTiles.push({ id: createEntityId(), column, row });
     refreshViewState();
     syncState().catch(() => {});
   };
@@ -695,24 +701,26 @@ export default function App() {
               </div>
 
               <div className="seed-grid">
-                <button className="seed-option" onClick={() => addLandEditor(getLandColumns(viewState.placements.landTiles)[0] - 1)}>
-                  <div className="seed-info">
-                    <span className="seed-icon">⬅️</span>
-                    <div>
-                      <span className="seed-name">Добавить участок слева</span>
-                      <span className="seed-desc">Без списания монет, для отладки.</span>
-                    </div>
-                  </div>
-                </button>
-                <button className="seed-option" onClick={() => addLandEditor(getLandColumns(viewState.placements.landTiles).slice(-1)[0] + 1)}>
-                  <div className="seed-info">
-                    <span className="seed-icon">➡️</span>
-                    <div>
-                      <span className="seed-name">Добавить участок справа</span>
-                      <span className="seed-desc">Без списания монет, для отладки.</span>
-                    </div>
-                  </div>
-                </button>
+                {['top', 'bottom', 'left', 'right'].map((dir) => {
+                  const bounds = getLandBounds(viewState.placements.landTiles);
+                  let col = 0, row = 0;
+                  if (dir === 'top') { col = bounds.minCol; row = bounds.minRow - 1; }
+                  if (dir === 'bottom') { col = bounds.minCol; row = bounds.maxRow + 1; }
+                  if (dir === 'left') { col = bounds.minCol - 1; row = bounds.minRow; }
+                  if (dir === 'right') { col = bounds.maxCol + 1; row = bounds.minRow; }
+
+                  return (
+                    <button key={dir} className="seed-option" onClick={() => addLandEditor(col, row)}>
+                      <div className="seed-info">
+                        <span className="seed-icon">{dir === 'top' ? '⬆️' : dir === 'bottom' ? '⬇️' : dir === 'left' ? '⬅️' : '➡️'}</span>
+                        <div>
+                          <span className="seed-name">Добавить {dir}</span>
+                          <span className="seed-desc">Для отладки.</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
                 <button className="seed-option" onClick={resetPlacedObjects}>
                   <div className="seed-info">
                     <span className="seed-icon">🧹</span>
