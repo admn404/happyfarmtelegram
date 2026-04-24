@@ -1,6 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, MapControls, OrthographicCamera, RoundedBox } from '@react-three/drei';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
   ANIMALS,
@@ -117,7 +117,7 @@ function LandTile({ column, row, onPlace, isSelected, onSelect, onHover }) {
   );
 }
 
-function ExpansionNode({ column, row, side, cost, onExpand }) {
+function ExpansionNode({ column, row, cost, onExpand }) {
   const center = getLandTileCenter(column, row);
   const [x, z] = pointToWorld(center.x, center.y);
 
@@ -261,7 +261,7 @@ function BuildingNode({ building, animalsCount, warehouseStored }) {
   );
 }
 
-function PreviewNode({ placementMode, hoverPoint, animalsCount, warehouseStored }) {
+function PreviewNode({ placementMode, hoverPoint }) {
   if (!placementMode || !hoverPoint) return null;
 
   const rawX = hoverPoint.x * 32 + 1024;
@@ -355,13 +355,11 @@ function AnimalNode({ animal }) {
 
 function SceneRoot({
   now, landTiles, plots, buildings, animals, products,
-  warehouseStored, expansionCost, expansionOptions,
-  placementMode, zoom, onGroundPlace, onPlotPlant,
-  onPlotHarvest, onCollectProduct, onExpand,
+  warehouseStored, placementMode, zoom, onGroundPlace,
+  onPlotPlant, onPlotHarvest, onCollectProduct,
   selectedTile, onTileSelect,
 }) {
-  const hoverPoint = useRef(null);
-  const [, forceUpdate] = useState(0);
+  const [hoverPoint, setHoverPoint] = useState(null);
 
   const buildingAnimals = Object.fromEntries(buildings.map((building) => [building.id, 0]));
   animals.forEach((animal) => {
@@ -369,8 +367,7 @@ function SceneRoot({
   });
 
   const handleHover = (point) => {
-    hoverPoint.current = point;
-    forceUpdate((v) => v + 1);
+    setHoverPoint(point);
   };
 
   return (
@@ -404,8 +401,8 @@ function SceneRoot({
         />
       ))}
 
-      {placementMode && hoverPoint.current && (
-        <PreviewNode placementMode={placementMode} hoverPoint={hoverPoint.current} />
+      {placementMode && hoverPoint && (
+        <PreviewNode placementMode={placementMode} hoverPoint={hoverPoint} />
       )}
 
       {plots.map((plot) => <PlotNode key={plot.id} plot={plot} now={now} onPlant={onPlotPlant} onHarvest={onPlotHarvest} />)}

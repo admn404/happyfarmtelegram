@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 const tg = window.Telegram.WebApp;
 
@@ -32,24 +32,24 @@ export default function MainMenu({ onPlay }) {
         <div className="blob blob-2"></div>
       </div>
 
-      <motion.div 
+      <Motion.div 
         className="main-menu-content"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
       >
-        <motion.h1 
+        <Motion.h1 
           className="menu-title"
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
           transition={{ duration: 0.5 }}
         >
           🚜 Гибридная Ферма
-        </motion.h1>
+        </Motion.h1>
         
         <AnimatePresence mode="wait">
           {!showLeaders ? (
-            <motion.div 
+            <Motion.div 
               key="buttons"
               className="menu-buttons"
               initial={{ opacity: 0, x: -20 }}
@@ -60,9 +60,9 @@ export default function MainMenu({ onPlay }) {
               <button className="menu-btn btn-play" onClick={onPlay}>Начать игру</button>
               <button className="menu-btn btn-leaders" onClick={handleShowLeaders}>🏆 Таблица рекордов</button>
               <button className="menu-btn btn-exit" onClick={() => tg.close()}>Выход</button>
-            </motion.div>
+            </Motion.div>
           ) : (
-            <motion.div 
+            <Motion.div 
               key="leaders"
               className="leaderboard-panel"
               initial={{ opacity: 0, x: 20 }}
@@ -94,10 +94,10 @@ export default function MainMenu({ onPlay }) {
                   ))
                 )}
               </div>
-            </motion.div>
+            </Motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }
