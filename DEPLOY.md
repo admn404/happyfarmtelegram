@@ -6,6 +6,7 @@
 - `.gitignore` для зависимостей, сборки, базы и секретов
 - `server/ecosystem.config.cjs` для `pm2`
 - `.github/workflows/deploy.yml` для автодеплоя по push в `main`
+- `ops/deploy_from_repo.sh` как серверный release-скрипт
 
 ## Что нужно сделать в GitHub
 
@@ -16,11 +17,11 @@
    - `SERVER_HOST`
    - `SERVER_USER`
    - `SERVER_SSH_KEY`
-   - `REPO_URL`
 
 ## Как работает деплой
 
-Workflow подключается по SSH к серверу, обновляет репозиторий в `/opt/farm/repo`, собирает клиент, ставит серверные зависимости и обновляет live-файлы в `/opt/farm`, затем делает `pm2 startOrReload`.
+Workflow подключается по SSH к серверу и запускает `/opt/farm/deploy_from_repo.sh`.
+Сам скрипт обновляет репозиторий в `/opt/farm/repo`, собирает клиент, ставит серверные зависимости и обновляет live-файлы в `/opt/farm`, затем делает `pm2 startOrReload`.
 
 ## Важно
 
