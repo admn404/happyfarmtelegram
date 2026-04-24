@@ -136,6 +136,7 @@ export default function App() {
   const [viewState, setViewState] = useState(() => createSnapshot(INITIAL_GAME_STATE));
   const [placementMode, setPlacementMode] = useState(null);
   const [toast, setToast] = useState('');
+  const [selectedEditorTile, setSelectedEditorTile] = useState(null);
 
   const auth = () => tg.initData || 'DEV_MODE_123';
 
@@ -422,6 +423,19 @@ export default function App() {
     syncState().catch(() => {});
   };
 
+  const resetLand = () => {
+    gs.current.placements.landTiles = [{ id: 'land-0-0', column: 0, row: 0 }];
+    gs.current.placements.plots = [];
+    gs.current.placements.buildings = [];
+    gs.current.animals = [];
+    gs.current.products = [];
+    gs.current.warehouse = [];
+    setSelectedEditorTile(null);
+    refreshViewState();
+    syncState().catch(() => {});
+    showToast('Участок сброшен до начального состояния.');
+  };
+
   const resetPlacedObjects = () => {
     gs.current.placements.plots = [];
     gs.current.placements.buildings = [];
@@ -556,6 +570,8 @@ export default function App() {
         onPlotHarvest={doHarvest}
         onCollectProduct={collectProduct}
         onExpand={buyExpansion}
+        selectedTile={editorOpen ? selectedEditorTile : null}
+        onTileSelect={editorOpen ? setSelectedEditorTile : null}
       />
 
       <div className="hud">
@@ -703,11 +719,18 @@ export default function App() {
               <div className="seed-grid">
                 {['top', 'bottom', 'left', 'right'].map((dir) => {
                   const bounds = getLandBounds(viewState.placements.landTiles);
-                  let col = 0, row = 0;
-                  if (dir === 'top') { col = bounds.minCol; row = bounds.minRow - 1; }
-                  if (dir === 'bottom') { col = bounds.minCol; row = bounds.maxRow + 1; }
-                  if (dir === 'left') { col = bounds.minCol - 1; row = bounds.minRow; }
-                  if (dir === 'right') { col = bounds.maxCol + 1; row = bounds.minRow; }
+                  const base = selectedEditorTile || {
+                    column: bounds.minCol,
+                    row: bounds.minRow,
+                  };
+
+                  let col = base.column;
+                  let row = base.row;
+
+                  if (dir === 'top') row -= 1;
+                  if (dir === 'bottom') row += 1;
+                  if (dir === 'left') col -= 1;
+                  if (dir === 'right') col += 1;
 
                   return (
                     <button key={dir} className="seed-option" onClick={() => addLandEditor(col, row)}>
@@ -715,18 +738,39 @@ export default function App() {
                         <span className="seed-icon">{dir === 'top' ? '⬆️' : dir === 'bottom' ? '⬇️' : dir === 'left' ? '⬅️' : '➡️'}</span>
                         <div>
                           <span className="seed-name">Добавить {dir}</span>
-                          <span className="seed-desc">Для отладки.</span>
+                          <span className="seed-desc">{selectedEditorTile ? `От (${base.column}, ${base.row})` : 'От края'}</span>
                         </div>
                       </div>
                     </button>
                   );
                 })}
+
+                <button className="seed-option" onClick={() => applyBalance(balance + 5000)}>
+                  <div className="seed-info">
+                    <span className="seed-icon">💰</span>
+                    <div>
+                      <span className="seed-name">+5000 Монет</span>
+                      <span className="seed-desc">Текущий баланс: {balance}</span>
+                    </div>
+                  </div>
+                </button>
+
+                <button className="seed-option seed-option--danger" onClick={resetLand}>
+                  <div className="seed-info">
+                    <span className="seed-icon">⚠️</span>
+                    <div>
+                      <span className="seed-name">Сбросить ВСЁ</span>
+                      <span className="seed-desc">Оставить только 1 центральный тайл.</span>
+                    </div>
+                  </div>
+                </button>
+
                 <button className="seed-option" onClick={resetPlacedObjects}>
                   <div className="seed-info">
                     <span className="seed-icon">🧹</span>
                     <div>
                       <span className="seed-name">Очистить объекты</span>
-                      <span className="seed-desc">Удаляет грядки, здания, животных и продукцию.</span>
+                      <span className="seed-desc">Удаляет грядки, здания и т.д. (земля остается).</span>
                     </div>
                   </div>
                 </button>

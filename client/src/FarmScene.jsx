@@ -70,28 +70,44 @@ function CameraRig({ zoom, landTiles }) {
   );
 }
 
-function LandTile({ column, row, onPlace }) {
+function LandTile({ column, row, onPlace, isSelected, onSelect }) {
   const center = getLandTileCenter(column, row);
   const [x, z] = pointToWorld(center.x, center.y);
 
   return (
-    <group position={[x, -TILE_HEIGHT / 2, z]}>
+    <group position={[x, -TILE_HEIGHT / 2, z]} onClick={(event) => {
+      if (onSelect) {
+        event.stopPropagation();
+        onSelect({ column, row });
+      }
+    }}>
       <mesh castShadow receiveShadow>
         <boxGeometry args={[TILE_WIDTH, TILE_HEIGHT, TILE_DEPTH]} />
-        <meshStandardMaterial color="#8e5c30" />
+        <meshStandardMaterial color={isSelected ? "#b98c5c" : "#8e5c30"} />
       </mesh>
       <mesh
         position={[0, TILE_HEIGHT / 2 + 0.02, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
         onClick={(event) => {
-          event.stopPropagation();
-          onPlace(event.point);
+          if (onSelect) {
+            event.stopPropagation();
+            onSelect({ column, row });
+          } else {
+            event.stopPropagation();
+            onPlace(event.point);
+          }
         }}
       >
         <planeGeometry args={[TILE_WIDTH, TILE_DEPTH]} />
-        <meshStandardMaterial color="#7dc85d" />
+        <meshStandardMaterial color={isSelected ? "#a9e38e" : "#7dc85d"} />
       </mesh>
+      {isSelected && (
+        <mesh position={[0, TILE_HEIGHT / 2 + 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[TILE_WIDTH * 1.05, TILE_DEPTH * 1.05]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.3} side={THREE.DoubleSide} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -293,7 +309,13 @@ function AnimalNode({ animal }) {
   );
 }
 
-function SceneRoot({ now, landTiles, plots, buildings, animals, products, warehouseStored, expansionCost, expansionOptions, placementMode, zoom, onGroundPlace, onPlotPlant, onPlotHarvest, onCollectProduct, onExpand }) {
+function SceneRoot({
+  now, landTiles, plots, buildings, animals, products,
+  warehouseStored, expansionCost, expansionOptions,
+  placementMode, zoom, onGroundPlace, onPlotPlant,
+  onPlotHarvest, onCollectProduct, onExpand,
+  selectedTile, onTileSelect,
+}) {
   const buildingAnimals = Object.fromEntries(buildings.map((building) => [building.id, 0]));
   animals.forEach((animal) => {
     if (buildingAnimals[animal.homeId] !== undefined) buildingAnimals[animal.homeId] += 1;
@@ -318,7 +340,16 @@ function SceneRoot({ now, landTiles, plots, buildings, animals, products, wareho
       <color attach="background" args={['#9ad8ff']} />
       <CameraRig zoom={zoom} landTiles={landTiles} />
 
-      {landTiles.map((tile) => <LandTile key={tile.id} column={tile.column} row={tile.row || 0} onPlace={onGroundPlace} />)}
+      {landTiles.map((tile) => (
+        <LandTile
+          key={tile.id}
+          column={tile.column}
+          row={tile.row || 0}
+          onPlace={onGroundPlace}
+          isSelected={selectedTile && selectedTile.column === tile.column && selectedTile.row === tile.row}
+          onSelect={onTileSelect}
+        />
+      ))}
       {expansionOptions.map((option) => (
         <ExpansionNode key={`${option.column},${option.row}`} column={option.column} row={option.row} side={option.side} cost={expansionCost} onExpand={onExpand} />
       ))}
