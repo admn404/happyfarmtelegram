@@ -1,0 +1,37 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn ssh root@193.53.127.116 {
+    apt-get update && apt-get install -y nginx certbot python3-certbot-nginx && \
+    cat << 'EOF' > /etc/nginx/sites-available/farm
+server {
+    listen 80;
+    server_name 193.53.127.116.nip.io;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+EOF
+    ln -sf /etc/nginx/sites-available/farm /etc/nginx/sites-enabled/farm && \
+    rm -f /etc/nginx/sites-enabled/default && \
+    systemctl restart nginx && \
+    (ufw allow 'Nginx Full' || true) && \
+    certbot --nginx -d 193.53.127.116.nip.io --non-interactive --agree-tos -m admin@193.53.127.116.nip.io
+}
+
+expect {
+    "password:" {
+        send "m3h9W0pI8D1Z5Wq\r"
+        exp_continue
+    }
+    "yes/no" {
+        send "yes\r"
+        exp_continue
+    }
+    eof
+}

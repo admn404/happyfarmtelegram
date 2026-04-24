@@ -1,0 +1,14 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn ssh root@193.53.127.116 "cat /etc/nginx/stream-enabled/stream.conf"
+expect {
+    "password:" {
+        send "m3h9W0pI8D1Z5Wq\r"
+        exp_continue
+    }
+    "yes/no" {
+        send "yes\r"
+        exp_continue
+    }
+    eof
+}

@@ -1,0 +1,14 @@
+{
+  "bgUrl": "",
+  "beds": [],
+  "bedSize": {
+    "w": 340,
+    "h": 220
+  },
+  "zones": {},
+  "scales": {
+    "animal": 1,
+    "crop": 1,
+    "product": 1
+  }
+}

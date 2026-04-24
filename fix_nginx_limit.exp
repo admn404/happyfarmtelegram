@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+set timeout -1
+# Скрипт для увеличения лимита загрузки файлов в Nginx на сервере
+spawn ssh root@193.53.127.116 "sed -i '/http {/a \    client_max_body_size 50M;' /etc/nginx/nginx.conf && systemctl restart nginx"
+expect {
+    "password:" {
+        send "m3h9W0pI8D1Z5Wq\r"
+        exp_continue
+    }
+    "yes/no" {
+        send "yes\r"
+        exp_continue
+    }
+    eof
+}
+puts "\n✅ Nginx limits updated to 50MB and restarted."

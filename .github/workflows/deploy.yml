@@ -1,0 +1,60 @@
+name: Deploy Farm
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          REPO_URL: ${{ secrets.REPO_URL }}
+        run: |
+          ssh "${SERVER_USER}@${SERVER_HOST}" "REPO_URL='${REPO_URL}' bash -s" <<'EOF'
+          set -e
+
+          REPO_DIR="/opt/farm/repo"
+          LIVE_DIR="/opt/farm"
+
+          if [ ! -d "$REPO_DIR/.git" ]; then
+            rm -rf "$REPO_DIR"
+            git clone "$REPO_URL" "$REPO_DIR"
+          fi
+
+          cd "$REPO_DIR"
+          git fetch --all
+          git reset --hard origin/main
+
+          cd "$REPO_DIR/client"
+          npm ci
+          npm run build
+
+          cd "$REPO_DIR/server"
+          npm ci --omit=dev
+
+          mkdir -p "$LIVE_DIR/client/dist" "$LIVE_DIR/server"
+          rsync -a --delete "$REPO_DIR/client/dist/" "$LIVE_DIR/client/dist/"
+          rsync -a "$REPO_DIR/server/index.js" "$REPO_DIR/server/database.js" "$REPO_DIR/server/package.json" "$REPO_DIR/server/package-lock.json" "$REPO_DIR/server/layout.json" "$REPO_DIR/server/ecosystem.config.cjs" "$LIVE_DIR/server/"
+
+          cd "$LIVE_DIR/server"
+          npm ci --omit=dev
+          pm2 startOrReload ecosystem.config.cjs --env production
+          pm2 save
+          EOF
